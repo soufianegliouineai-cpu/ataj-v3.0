@@ -16,8 +16,8 @@ cd compiler &&./build.sh
 ./target/release/atajc test --tier all
 ```
 
-The 8 Keywords
-`APP, HAVE, SHOW, DO, WHEN, ON, USE, multi-cloud`
+The 9 Keywords
+`APP, AGENT, HAVE, SHOW, DO, WHEN, ON, USE, multi-cloud`
 
 Guarantees
 RPO 5min | RTO 15min | Cost Cap $1000/day | 0 CVEs | 80/80 Tests
@@ -67,4 +67,4 @@ docker pull ataj/ataj:3.0
 ATAJ has exactly 8 keywords, 9 modifiers, 7 data types.
 No extras. No features you don't need. Nothing that can break in prod.
 
-**8 Keywords. 0 CVEs. Ship with confidence.**
+**9 Keywords. 0 CVEs. Ship with confidence.**

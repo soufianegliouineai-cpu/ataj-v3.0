@@ -1,5 +1,5 @@
-# ATAJ LANGUAGE SPEC v3.0
-## Simple. 8 Keywords. Unbreakable.
+# ATAJ LANGUAGE SPEC v3.1
+## 9 Keywords. 0 Errors. Unbreakable.
 
 ---
 
@@ -14,49 +14,45 @@ Program ::= APP_Statement Decl*
 ```
 APP <name> multi-cloud <cloud> ["," <cloud>]*
 ```
-Clouds: `aws`, `gcp`, `azure`
 
 ### USE Statement
 ```
 USE <library> PIN <version>
 USE <library> [UNSAFE]
 ```
-Version format: `MAJOR.MINOR.PATCH` (e.g., `1.2.3`)
 
-### HAVE Statement (Data Model)
+### HAVE Statement
 ```
-HAVE <Model> with <field1> <type> [modifier] [field2] <type> [modifier]*
+HAVE <Model> with <field1> <type> [modifier]*
+HAVE <Model> with <field1> <type> unique
 ```
 Types: `string`, `decimal`, `uuid`, `int`, `bool`, `timestamp`, `enum`
-Modifiers: `secure` (encrypt at rest + redact in logs), `immutable` (append-only), `unique` (unique constraint)
+Modifiers: `secure`, `immutable`, `unique`
 
 ### SHOW Statement
 ```
 SHOW <ViewName>
 ```
-Shows all fields of the model in a UI/dashboard
+
+### AGENT Statement (NEW - AI Agent Orchestration)
+```
+AGENT <Name> with GOAL "<goal>"
+  MODEL <provider> <model> PIN <version>
+  SANDBOXED
+  COST_CAP $<amount>/day
+```
+
+Agents execute AI tasks with safety guarantees:
+- Every agent action = DO (idempotent + circuit + audit)
+- Cost-Guard applies to LLM calls
+- Human approval required for actions > $1000
+- Outputs validated against schema
 
 ### DO Statement (Business Logic)
 ```
 DO <ActionName> [and <modifier>]*
  <body>*
 ```
-
-Modifiers (applied to DO):
-- `idempotent` — Safe to retry, keyed dedup
-- `circuit` — Stops after 5 failures, auto-recovers
-- `bulk` — Processes in chunks of 1000 with checkpoints  
-- `approval from <N> <role>` — Requires N signatures from role
-- `secure` — Encrypts output data
-- `self-heal` — Auto-retries on failure then escalates
-- `immutable` — Output never changes once written
-
-Body actions:
-- `Call <library>.<method> <param> = <value>` — External call
-- `DO Emit <event>` — Emit side effect
-- `DO <ActionName>` — Nested DO call
-- `IF <condition>` — Conditional block
-- `FOR each <Model> DO <Action>` — Loop
 
 ### WHEN Statement (Scheduler)
 ```
@@ -66,117 +62,107 @@ Cron: `1st of month`, `daily`, `hourly`, `* * * * *`
 
 ### ON Statement (Webhook/Event)
 ```
-ON <webhook_path>
-DO <ActionName>
+ON <event_path> [DO <ActionName>]
 ```
 
----
-
-## Complete Syntax Quick Reference
-
-### 8 Keywords
-| Keyword | What It Does | Example |
-|---|---|---|
-| **APP** | Define app + deployment targets | `APP MyApp multi-cloud aws gcp` |
-| **USE** | Import library (PIN versioned) | `USE stripe PIN 1.2.3` |
-| **HAVE** | Define data model + schema | `HAVE User with id uuid email string` |
-| **SHOW** | Create UI/dashboard view | `SHOW UserDashboard` |
-| **DO** | Execute logic (the core) | `DO Buy and idempotent circuit` |
-| **WHEN** | Schedule cron jobs | `WHEN 1st of month DO Bill` |
-| **ON** | Handle webhooks/events | `ON /payment DO Process` |
-| **multi-cloud** | Deployment target | `multi-cloud aws gcp` |
-
-### 9 Modifiers
-| Modifier | Applies To | Effect |
-|---|---|---|
-| `idempotent` | DO | Safe retry, no duplicates |
-| `circuit` | DO | Auto-stop on failures |
-| `bulk` | DO | Batch processing |
-| `approval from N role` | DO | N signatures required |
-| `secure` | HAVE, DO | Encrypt data |
-| `self-heal` | DO | Auto-recover |
-| `immutable` | HAVE, DO | Write-once |
-| `PIN` | USE | Version-pinned |
-| `UNSAFE` | USE | Bypass sandbox |
-
-### Data Types
-| Type | Description | Guarantees |
-|---|---|---|
-| `string` | Text | UTF-8 |
-| `decimal` | Money/precision | ECC + CRC32, no float errors |
-| `uuid` | Unique ID | v7 time-sortable |
-| `int` | Integer | 64-bit |
-| `bool` | True/False | — |
-| `timestamp` | ISO 8601 UTC | — |
-| `enum` | Set of values | Compiler validates |
+### multi-cloud Statement
+```
+multi-cloud <cloud> ["," <cloud>]*
+```
+Clouds: `aws`, `gcp`, `azure`
 
 ---
 
-## Example: Minimal App (10 lines)
+## 9 Keywords (v3.1)
+
+| # | Keyword | Purpose | Example |
+|---|---|---|---|
+| 1 | **APP** | App definition + targets | `APP MyApp multi-cloud aws gcp` |
+| 2 | **HAVE** | Data models + schema | `HAVE Order with id uuid total decimal` |
+| 3 | **SHOW** | UI / API / Dashboard | `SHOW Store` |
+| 4 | **DO** | Business logic / actions | `DO Buy and idempotent circuit` |
+| 5 | **WHEN** | Cron / Scheduler | `WHEN 1st of month DO Billing` |
+| 6 | **ON** | Webhooks / Events / Queues | `ON /payment DO Receive` |
+| 7 | **USE** | Libraries (PIN versioned) | `USE stripe PIN 1.2.3` |
+| 8 | **multi-cloud** | Deployment target | `multi-cloud aws gcp azure` |
+| 9 | **AGENT** | AI agent orchestration | `AGENT FraudDetector with GOAL "..."` |
+
+## Modifiers
+`idempotent` `circuit` `bulk` `approval` `secure` `self-heal` `immutable` `PIN` `UNSAFE`
+
+---
+
+## AGENT Example
 
 ```ataj
-APP MyApp multi-cloud aws
+APP Fintech multi-cloud aws gcp
+
+AGENT FraudDetector with GOAL "Block fraud >99.9%"
+ MODEL openai GPT-4 PIN 2.1.0
+ SANDBOXED
+ COST_CAP $100/day
 
 USE stripe PIN 1.2.3
+USE openai PIN 2.1.0
 
-HAVE Order with id uuid total decimal status enum
+HAVE Transaction with id uuid amount decimal status enum
 
-DO Buy and idempotent
- Call stripe.charge amount = Order.total
-DO Emit order.created
+DO ProcessPayment and idempotent circuit approval from 2
+ Call stripe.charge amount = Transaction.amount idempotency_key = Transaction.id
+ CALL FraudDetector.analyze Transaction.amount Transaction.user_id
+ IF FraudDetector.verdict = "FRAUD"
+ DO Block and approval from FraudTeam circuit
+ CALL stripe.refund amount = Transaction.amount
+ DO Audit and immutable
+DO Emit payment.completed
 
-DO Refund and idempotent circuit approval from 1
- Call stripe.refund id = Order.id
-DO Emit order.refunded
+WHEN hourly DO FraudReport and bulk
+FOR each Transaction DO Export to S3 WORM
 
-WHEN 1st of month DO MonthlyBill
-FOR each Order WHERE status = "pending" DO Charge
+DO Backup and immutable
+DO GDPR delete user and audit
 ```
 
 ---
 
-## Error Messages
+## AGENT Safety Guarantees
 
-| Error | Cause | Fix |
-|---|---|---|
-| `9th keyword detected` | Used a 9th keyword | Remove it or use existing 8 |
-| `missing PIN on USE` | Library not versioned | Add `PIN x.y.z` |
-| `duplicate DO name` | Same DO defined twice | Rename or merge |
-| `approval from 0` | N must be >= 1 | Use `approval from 1 CFO` |
-| `unknown type in HAVE` | Type not in allowed list | Use `string`, `decimal`, `uuid`, `int`, `bool`, `timestamp`, `enum` |
-| `no APP declaration` | Missing APP statement | Add `APP <name> multi-cloud <cloud>` |
-| `UNSAFE without review` | UNSAFE used but no code review | Add 2 exec approvals |
+1. **Every AGENT action = DO** — idempotent + circuit + audit enforced
+2. **Cost-Guard** — applies to LLM calls, prevents runaway spending
+3. **Approval gate** — required for actions > $1000
+4. **Schema validation** — agent outputs validated before execution
+5. **Rollback on error** — self-heal triggers retry
+6. **Kill switch** — `emergency_kill` if cost > $1000 or RTO > 15min
 
 ---
 
-## Compiler Pipeline
+## Grammar Extension (v3.1)
 
+### AGENT Block
 ```
-ataj source (.ataj)
-    ↓ parse
-AST (Abstract Syntax Tree)
-    ↓ validate (8 keywords + modifiers only)
-codegen → Rust source
-    ↓ cargo build --release
-18MB static binary
+AGENT <Name> with GOAL "<goal>"
+  MODEL <provider> <model> PIN <version>
+  [SANDBOXED]
+  [COST_CAP $<amount>/day]
 ```
 
----
+### Conditional Blocks in DO
+```
+IF <condition>
+ <actions>
+ELSE
+ <actions>
+```
 
-## Runtime Guarantees
-
-Guarantee | How ATAJ Enforces It
----|---
-No double charge | `idempotent` + UUID dedup table + serializable DB
-No data leak | `secure` fields encrypted + sandboxed USE calls
-No cascade failure | `circuit` breaker on every external call
-No $2M bill | `cost_cap $1000/day` + auto-kill
-RPO 5min | WAL replication to 2nd cloud every 5min
-RTO 15min | Active-active + 8s failover
-No CVEs | Static binary + 0 dependencies
-GDPR delete | `DO GDPR delete user` completes in 2h
-Audit trail | Every DO → immutable S3 WORM log
+### Method Call
+```
+Call <library_or_agent>.<method> <param> = <value>
+```
 
 ---
 
-*8 Keywords. 0 Errors. Ship with confidence.*
+## 8 (or 9) Keywords. Nothing More. Nothing Less.
+
+If it cannot be expressed in 9 keywords or fewer, reconsider the design.
+
+*Simple. Provable. Unbreakable.*
