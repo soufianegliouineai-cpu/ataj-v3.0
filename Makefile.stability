@@ -1,0 +1,9 @@
+stability:
+	cargo test --release -- --test-threads=1
+	cargo fuzz run parser -- -max_total_time=86400
+	bash tests/torture/torture-90days.sh
+	bash deploy/chaos/chaos-monkey.sh &
+	bash deploy/validation/drift-detector.sh
+
+signoff:
+	@echo "IF THIS PASSES, WE FREEZE FOR 5 YEARS"

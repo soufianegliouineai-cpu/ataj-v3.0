@@ -1,0 +1,18 @@
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  name: ataj-core
+spec:
+  description: "ATAJ v3.0 LTS SLOs"
+  objectives:
+    - name: rto
+      target: 0.99999
+      threshold: 900s
+    - name: rpo
+      target: 0.99999
+      threshold: 300s
+    - name: cost
+      target: 1.0
+      threshold: 1000
+
+If any SLO burns: Page + \$10k credit
