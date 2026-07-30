@@ -1,0 +1,30 @@
+APP EcommerceStore frontend react
+
+PAGE Store and public
+  FLEX Navbar and row items-center justify-between bg-white shadow-md px-6 py-4 sticky top-0 z-50
+    CARD Brand with logo text "Shop" size 2xl font-bold text-indigo-600
+    FLEX Search and flex-1 max-w-lg mx-8
+      INPUT placeholder "Search products..." rounded-full border-gray-200 focus:border-indigo-500
+    FLEX Actions and row items-center gap-4
+      BUTTON Cart and icon position relative
+        BADGE count = cart.length color red
+      AVATAR user = current_user size small
+  GRID Hero and 4 columns gap-0 mb-8
+    CARD HeroBanner and col-span-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white p-12 rounded-xl
+      TEXT title = "Summer Sale" size 5xl font-bold mb-4
+      TEXT subtitle = "Up to 50% off selected items" size xl mb-8
+      BUTTON CTA and bg-white text-indigo-600 px-8 py-3 rounded-full font-semibold
+  GRID Products and 3 columns gap-6 px-6 pb-12
+    FOR product in products
+      CARD ProductCard and bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow cursor-pointer
+        IMG src = product.image alt = product.name class = "w-full h-64 object-cover"
+        CARD Body and p-4
+          TEXT category = product.category text-sm text-gray-500 uppercase tracking-wide
+          TEXT name = product.name font-semibold text-lg mb-2
+          FLEX PriceAndRating and row items-center justify-between mt-2
+            TEXT price = product.price font-bold text-lg text-indigo-600
+            TEXT rating = "⭐ {product.rating}" text-sm text-yellow-500
+          BUTTON AddToCart and bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 mt-3 w-full
+  NAV Footer with columns Shop About Contact Support Cart
+
+COMPILE TO store.tsx + store.css

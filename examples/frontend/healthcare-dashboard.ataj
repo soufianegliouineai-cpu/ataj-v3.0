@@ -1,0 +1,70 @@
+App HealthDashboard frontend react
+
+PAGE Dashboard and role doctor
+  FLEX Header and row items-center justify-between bg-white shadow px-6 py-3
+    CARD Logo with text "HealthTrack" font-bold text-xl text-indigo-700
+    FLEX Nav and row gap-6
+      NAV Link with Dashboard active
+      NAV Link with Patients
+      NAV Link with Appointments
+      NAV Link with Reports
+    FLEX User and row items-center gap-3
+      AVATAR user = doctor.avatar
+      TEXT doctor.name
+      BUTTON Logout and ghost
+  GRID Main and 3 columns gap-6 p-6
+    GRID LeftCol and col-span-2 flex-col gap-6
+      CARD Welcome and p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100
+        TEXT TodayWelcome = "Good {time_of_day}, Dr. {doctor.name}" size lg
+        TEXT TodaySummary = "You have {today_appointments} appointments and {today_patients} patients"
+      GRID QuickStats and 3 columns gap-4
+        CARD Stat and bg-white rounded-lg shadow-sm p-4 border border-gray-100
+          TEXT label = "Total Patients" value = stats.total_patients text-2xl font-bold text-indigo-600
+          TEXT change = "+12% this month" text-xs text-green-600
+        CARD Stat and bg-white rounded-lg shadow-sm p-4 border border-gray-100
+          TEXT label = "Today Appointments" value = stats.today_appointments text-2xl font-bold text-green-600
+          TEXT change = "{today_completed}/{today_total} completed" text-xs text-gray-500
+        CARD Stat and bg-white rounded-lg shadow-sm p-4 border border-gray-100
+          TEXT label = "Pending Alerts" value = stats.alerts text-2xl font-bold text-red-500
+          TEXT change = "Requires attention" text-xs text-red-400
+      CARD RecentPatients and bg-white rounded-lg shadow-sm p-6
+        TABLE Patients with columns Name DOB Last Visit Status Actions
+        FOR patient in recent_patients
+          ROW with key patient.id
+            CELL patient.name text font-medium
+            CELL patient.dob text-gray-500
+            CELL patient.last_visit text-gray-500
+            CELL status = patient.status badge variant = patient.status == "critical" ? "danger" : "success"
+            CELL
+              BUTTON View and icon text-indigo-600 hover:text-indigo-900
+              BUTTON Edit and icon text-gray-400 hover:text-gray-600
+      CARD UpcomingAppointments and bg-white rounded-lg shadow-sm p-6
+        TABLE Appointments with columns Time Patient Doctor Type Status
+        FOR appointment in upcoming_appointments
+          ROW with key appointment.id
+            CELL appointment.time text font-mono text-sm
+            CELL appointment.patient text font-medium
+            CELL appointment.type text-indigo-600 badge
+            CELL appointment.status badge variant = appointment.status
+    GRID RightCol and col-span-1 flex-col gap-6
+      CARD PatientAlerts and bg-red-50 rounded-lg border border-red-200 p-4
+        TEXT Title = "Alerts" size lg font-semibold text-red-700
+        FOR alert in critical_alerts
+          FLEX AlertItem and row items-start gap-2 mb-3
+            ICON type = alert.type color = alert.type == "critical" ? red : yellow
+            TEXT alert.message text-sm text-red-800
+      CARD QuickActions and bg-gray-50 rounded-lg p-4
+        TEXT Title = "Quick Actions" size lg font-semibold text-gray-700 mb-3
+        BUTTON NewPatient and w-full bg-indigo-600 text-white py-2 rounded-lg mb-2
+        BUTTON ScheduleAppointment and w-full bg-green-600 text-white py-2 rounded-lg mb-2
+        BUTTON WritePrescription and w-full bg-blue-600 text-white py-2 rounded-lg mb-2
+        BUTTON ViewReports and w-full bg-gray-600 text-white py-2 rounded-lg
+      CARD TodaySummary and bg-white rounded-lg shadow-sm p-6
+        TEXT Title = "Today's Schedule" size lg font-semibold text-gray-700 mb-3
+        FOR slot in today_schedule
+          CARD Slot and flex items-center gap-3 py-2 border-b border-gray-100
+            TEXT time = slot.time font-mono text-sm text-gray-500
+            TEXT patient = slot.patient text font-medium flex-1
+            TEXT type = slot.type badge variant = slot.type
+
+COMPILE TO health-dashboard.tsx + health-dashboard.css

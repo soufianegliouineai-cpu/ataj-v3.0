@@ -1,0 +1,19 @@
+APP LuxuryDashboard frontend react
+
+PAGE Dashboard and public
+  FLEX TopBar and row justify-between items-center bg-black text-white
+    CARD Brand with logo title subtitle
+    NAV Desktop with Home Products Orders Analytics Settings
+  GRID Main and 4 columns gap-6 mt-8
+    CARD TotalRevenue with value="$1.2M" change="+12%" positive badge
+    CARD ActiveUsers with value="48,201" change="+8%" positive badge
+    CARD AvgOrderValue with value="$127.50" change="+3%" positive badge
+    CARD ConversionRate with value="3.2%" change="+.1%" positive badge
+    GRID Charts and 2 columns gap-6 mt-8
+      CARD RevenueChart with data revenue_data type area
+      CARD UserChart with data user_data type bar
+    GRID RecentOrders and 1 column gap-6 mt-8
+      TABLE Orders with columns Date Customer Total Status
+  NAV Bottom with Home Dashboard Orders Settings Profile
+
+COMPILE TO shop-dashboard.tsx + shop-dashboard.css

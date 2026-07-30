@@ -1,0 +1,146 @@
+APP EnterpriseBackend multi-cloud aws gcp azure
+
+USE postgres PIN 3.0.0
+USE redis PIN 7.0.0
+USE elastic PIN 8.1.0
+USE kafka PIN 3.0.0
+USE vault PIN 4.0.0
+USE s3 PIN 1.0.0
+USE cloudwatch PIN 2.0.0
+
+HAVE Account with id uuid email string password_hash string role enum status enum created_at timestamp
+Have Profile with id uuid user_id uuid display_name string avatar_url string bio string location string
+Have Session with id uuid user_id uuid token_hash string expires_at timestamp ip string user_agent string
+Have AuditLog with id uuid action string entity_type string entity_id string user_id uuid metadata json timestamp timestamp ip string
+Have RateLimit with id uuid user_id uuid endpoint string window_seconds int request_count int reset_at timestamp
+Have SearchIndex with id uuid index_type string document json metadata json created_at timestamp
+Have Notification with id uuid user_id uuid type enum title string body string read bool created_at timestamp
+Have Subscription with id uuid user_id uuid plan enum status enum stripe_id string current_period_start timestamp current_period_end timestamp
+Have Invoice with id uuid subscription_id uuid amount decimal tax decimal total decimal status enum period_start timestamp period_end timestamp
+Have Webhook with id uuid url string secret_hash string events string[] active bool retries int last_status int
+
+SHOW UserDashboard
+SHOW AdminPanel
+SHOW AuditTrail
+SHOW Analytics
+SHOW APIKeys
+SHOW NotificationCenter
+SHOW SubscriptionManagement
+
+DO Register and idempotent circuit approval from System
+ Call vault.secret_get key = "app/salt"
+ Call bcrypt.hash password = Account.password_hash
+ Call postgres.insert table = "accounts" values = {email, password_hash, role = "user", status = "active"}
+ Call profile.create user_id = Account.id display_name = Account.email
+ Call elastic.index index = "users" document = Account
+ Call kafka.publish topic = "user.registered" message = Account.id
+ Call audit.log action = "USER_REGISTER" entity = "Account" id = Account.id user_id = Account.id ip = "trusted"
+ DO Emit user.registered
+
+DO Login and idempotent circuit
+ Call postgres.query table = "accounts" where = "email = Account.email"
+ Call bcrypt.verify password_hash = Account.password_hash
+ Call session.create user_id = Account.id token = Account.token_hash ip = Account.ip user_agent = Account.user_agent
+ Call rate_limit.check user_id = Account.id endpoint = "/login"
+ Call kafka.publish topic = "user.login" message = Account.id
+ Call audit.log action = "USER_LOGIN" entity = "Session" id = Session.id user_id = Account.id ip = Account.ip
+ DO Emit session.created
+
+DO CreatePayment and idempotent circuit approval from 2
+ Call stripe.charge amount = Invoice.total idempotency_key = Invoice.id
+ Call subscription.update status = "active" stripe_id = Invoice.stripe_id
+ Call invoice.mark_paid id = Invoice.id
+ Call kafka.publish topic = "payment.completed" message = Invoice.id
+ Call audit.log action = "PAYMENT_COMPLETED" entity = "Invoice" id = Invoice.id user_id = Invoice.user_id
+DO Emit payment.completed
+
+DO CancelSubscription and idempotent circuit approval from 1 admin
+ Call stripe.subscription_update id = Subscription.stripe_id cancel_at_period = true
+ Call subscription.update status = "canceled"
+ Call notification.create user_id = Subscription.user_id type = "billing" title = "Subscription Canceled" body = "Your subscription will end on {date}"
+ Call audit.log action = "SUBSCRIPTION_CANCELED" entity = "Subscription" id = Subscription.id user_id = Subscription.user_id
+DO Emit subscription.canceled
+
+DO Search and idempotent circuit
+ Call elastic.search index = "users" query = Search.query
+ Call elastic.search index = "documents" query = Search.query
+ Call audit.log action = "SEARCH" entity = "SearchIndex" id = SearchIndex.id user_id = Search.user_id
+DO Emit search.completed
+
+ON webhook.stripe
+DO ProcessStripeEvent and idempotent circuit
+ Call elastic.index index = "events" document = Webhook.body
+ Call audit.log action = "STRIPE_WEBHOOK" entity = "Webhook" id = Webhook.id metadata = Webhook.events
+DO Emit stripe.event.processed
+
+ON webhook.github
+DO ProcessGitHubEvent and idempotent circuit
+ Call elastic.index index = "events" document = Webhook.body
+ Call kafka.publish topic = "github.event" message = Webhook.body
+DO Emit github.event.processed
+
+WHEN 1st of month DO MonthlyBilling and bulk
+ FOR each Subscription WHERE status = "active" DO
+  Call invoice.generate subscription_id = Subscription.id period_start = Subscription.current_period_start period_end = Subscription.current_period_end
+  Call kafka.publish topic = "invoice.generated" message = Invoice.id
+
+WHEN hourly DO HealthCheck and bulk
+ Call postgres.query "SELECT 1"
+ Call redis.ping
+ Call elastic.health
+ Call kafka.health
+ Call cloudwatch.put_metric name = "health_check" value = 1
+
+WHEN daily DO Cleanup and bulk
+ FOR each Session WHERE expires_at < now() DO
+  Call session.delete id = Session.id
+ FOR each RateLimit WHERE reset_at < now() DO
+  Call rate_limit.delete id = RateLimit.id
+ FOR each SearchIndex WHERE created_at < now() - 30 days DO
+  Call elastic.delete index = SearchIndex.index_type id = SearchIndex.id
+ FOR each Notification WHERE read = true AND created_at < now() - 90 days DO
+  Call notification.delete id = Notification.id
+
+DO Backup and immutable
+ FOR each Table IN [accounts, profiles, sessions, audit_logs, invoices, subscriptions, notifications, rate_limits, search_indexes, webhooks] DO
+  Call s3.put bucket = "ataj-backup" key = "daily/{table}/{uuid}.json" body = Table.export
+  Call postgres.dump table = Table.name to = "s3://ataj-backup/database/"
+
+DO GDPR delete user and audit
+ Call postgres.anonymize table = "accounts" where = "user_id = GDPR.user_id"
+ Call postgres.anonymize table = "profiles" where = "user_id = GDPR.user_id"
+ Call postgres.anonymize table = "sessions" where = "user_id = GDPR.user_id"
+ Call postgres.anonymize table = "audit_logs" where = "user_id = GDPR.user_id"
+ Call postgres.anonymize table = "notifications" where = "user_id = GDPR.user_id"
+ Call postgres.anonymize table = "subscriptions" where = "user_id = GDPR.user_id"
+ Call postgres.anonymize table = "invoices" where = "user_id = GDPR.user_id"
+ Call elastic.delete_by_query index = "users" query = {user_id: GDPR.user_id}
+ Call kafka.publish topic = "user.gdpr_deleted" message = GDPR.user_id
+ Call audit.log action = "GDPR_DELETE" entity = "Account" id = GDPR.user_id user_id = GDPR.user_id metadata = {type: "full_deletion"}
+DO Emit user.deleted
+
+DO Reindex and bulk
+ FOR each Index IN SearchIndex DO
+  Call elastic.reindex index = Index.index_type from = Index.id
+ Call audit.log action = "REINDEX" entity = "SearchIndex" id = Index.id
+DO Emit reindex.completed
+
+DO MigrateSchema and approval from DBA
+ Call postgres.create_migration name = Migration.name sql = Migration.sql
+ Call postgres.run_migration id = Migration.id
+ Call audit.log action = "SCHEMA_MIGRATION" entity = "Migration" id = Migration.id user_id = Migration.dba_id
+DO Emit schema.migrated
+
+DO RunDiagnostics and self-heal
+ Call diagnostic.memory_check
+ Call diagnostic.cpu_check
+ Call diagnostic.disk_check
+ Call diagnostic.network_check
+ Call diagnostic.database_check
+ Call diagnostic.cache_check
+ Call diagnostic.queue_check
+ Call diagnostic.circuit_check
+ IF any_check_failed
+  DO self.heal
+  DO alert.oncall
+DO Emit diagnostics.completed
