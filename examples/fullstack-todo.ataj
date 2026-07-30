@@ -1,0 +1,62 @@
+APP TodoFullStack multi-cloud aws gcp
+
+USE stripe PIN 1.2.3
+USE postgres PIN 3.0.0
+USE redis PIN 7.0.0
+USE email PIN 2.1.0
+
+HAVE User with id uuid email string secure name string role enum
+HAVE Task with id uuid user_id uuid title string description string status enum priority int due_at timestamp secure
+HAVE Project with id uuid name string owner_id uuid
+HAVE TaskAssignment with task_id uuid user_id uuid role enum
+HAVE AuditLog with id uuid action string entity_type string entity_id string timestamp timestamp user_id uuid
+
+SHOW Dashboard
+SHOW TaskList
+SHOW ProjectBoard
+SHOW AdminPanel
+
+DO CreateTask and idempotent circuit approval from 2
+ Call postgres.insert table = "tasks" values = {title: Task.title, status: "pending", priority: Task.priority, user_id: Task.user_id}
+ Call redis.publish channel = "tasks.created" message = Task.id
+ DO Audit and immutable
+ DO Emit task.created
+
+DO AssignTask and idempotent circuit approval from 1
+ Call postgres.insert table = "task_assignments" values = {task_id: Assignment.task_id, user_id: Assignment.user_id}
+ Call email.send template = "task_assigned" to = User.email
+ DO Audit and immutable
+ DO Emit task.assigned
+
+DO CompleteTask and idempotent circuit
+ Call postgres.update table = "tasks" set = {status: "completed"} where = "id = Task.id"
+ Call redis.publish channel = "tasks.completed" message = Task.id
+ DO Audit and immutable
+ DO Emit task.completed
+
+DO DeleteTask and idempotent circuit approval from 2
+ Call postgres.delete table = "tasks" where = "id = Task.id"
+ Call redis.publish channel = "tasks.deleted" message = Task.id
+ DO Audit and immutable
+ DO Emit task.deleted
+
+DO MoveTask and idempotent circuit
+ Call postgres.update table = "tasks" set = {status: Task.status} where = "id = Task.id"
+ Call redis.publish channel = "tasks.moved" message = Task.id
+ DO Audit and immutable
+
+ON task.created
+DO AssignTask and Call postgres.query table = "users" filter = "role = 'member'"
+DO Log
+
+ON task.completed
+DO Email and Call email.send template = "task_completed" to = Task.user_id
+DO Log
+
+WHEN 1st of month DO Cleanup and bulk
+ FOR each Task WHERE status = "completed" AND due_at < now() - 90 days DO Call postgres.delete
+FOR each Project WHERE created_at < now() - 365 days DO CALL archive
+DO Audit and immutable
+
+DO Backup and immutable
+DO GDPR delete user and audit
