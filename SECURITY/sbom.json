@@ -1,0 +1,10 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "components": [
+    {"name": "atajc", "version": "3.0.0", "type": "application", "licenses": [{"license": {"name": "MIT"}}]},
+    {"name": "rust_decimal", "version": "1.36.0", "vulnerabilities": []}
+  ],
+  "vulnerabilities": []
+}

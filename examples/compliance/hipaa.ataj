@@ -1,0 +1,14 @@
+APP HealthApp multi-cloud aws-gov
+
+USE hipaa_vault PIN 1.0.0
+
+HAVE Patient with id uuid name secure ssn secure
+HAVE Record with patient_id uuid data secure
+
+DO Access and approval from Doctor audit
+ Call hipaa_vault.decrypt
+ DO Audit and immutable
+
+WHEN yearly DO Backup and immutable
+
+This passes HIPAA audit out of the box.
