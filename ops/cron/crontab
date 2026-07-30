@@ -1,0 +1,5 @@
+# ATAJ STABILITY CRON
+0 9 * * * /opt/ataj/ops/reports/daily-stability-report.sh
+*/5 * * * * /opt/ataj/deploy/validation/drift-detector.sh
+0 */6 * * * /opt/ataj/deploy/chaos/chaos-monkey.sh
+0 3 * * 0 /opt/ataj/tests/torture/torture-90days.sh --cycle
