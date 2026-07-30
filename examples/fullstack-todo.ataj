@@ -54,8 +54,8 @@ DO Email and Call email.send template = "task_completed" to = Task.user_id
 DO Log
 
 WHEN 1st of month DO Cleanup and bulk
- FOR each Task WHERE status = "completed" AND due_at < now() - 90 days DO Call postgres.delete
-FOR each Project WHERE created_at < now() - 365 days DO CALL archive
+ FOR EACH Task WHERE status = "completed" AND due_at < now() - 90 days DO Call postgres.delete
+FOR EACH Project WHERE created_at < now() - 365 days DO CALL archive
 DO Audit and immutable
 
 DO Backup and immutable

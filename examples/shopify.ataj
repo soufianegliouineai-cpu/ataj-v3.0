@@ -18,7 +18,7 @@ ON order.paid
 DO Email and Call email.send template = "receipt"
 
 WHEN 1st of month DO Billing and bulk
- FOR each Tenant DO Charge
+ FOR EACH Tenant DO Charge
 
 DO Backup and immutable
 DO GDPR delete user and audit

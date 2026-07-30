@@ -57,10 +57,10 @@ DO TrackEvent and idempotent circuit
  DO Emit event.tracked
 
 DO GenerateReport and bulk approval from 1 Analytics
- FOR each Product DO
+ FOR EACH Product DO
   Call elastic.search index = "reviews" query = {product_id: Product.id} aggregate = "avg_rating"
   Call postgres.update table = "products" set = {rating: Review.avg_rating, reviews: Review.count} where = "id = Product.id"
- FOR each Order WHERE status = "completed" AND created_at >= Report.start_date AND created_at <= Report.end_date DO
+ FOR EACH Order WHERE status = "completed" AND created_at >= Report.start_date AND created_at <= Report.end_date DO
   Call postgres.query "SELECT SUM(total) FROM orders WHERE status = 'completed' AND created_at BETWEEN $1 AND $2"
   Call s3.upload bucket = "luxurystore-reports" key = "sales-{date}.csv" body = Report.data
  DO Audit and immutable
@@ -77,8 +77,8 @@ DO SendAbandonedCartEmail and idempotent
  DO Emit email.sent
 
 WHEN 1st of month DO GenerateMonthlyReport and bulk
- FOR each Product DO UpdateProductAnalytics
- FOR each Customer DO UpdateCustomerInsights
+ FOR EACH Product DO UpdateProductAnalytics
+ FOR EACH Customer DO UpdateCustomerInsights
  DO Audit and immutable
 
 DO GDPR delete customer and audit

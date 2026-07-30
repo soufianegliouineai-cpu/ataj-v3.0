@@ -13,6 +13,6 @@ DO Wire and approval from 2 CFO circuit idempotent audit
  DO Log and immutable
 
 WHEN daily DO SOX_Report and bulk
- FOR each Wire DO Export to S3 WORM
+ FOR EACH Wire DO Export to S3 WORM
 
 DO GDPR delete user and audit

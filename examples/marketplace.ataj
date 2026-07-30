@@ -15,4 +15,4 @@ ON purchase.complete
 DO Email and Call email.send template = "shipped"
 
 WHEN daily DO Payout and bulk
- FOR each Seller DO Call stripe.payout
+ FOR EACH Seller DO Call stripe.payout

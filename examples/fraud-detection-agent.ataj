@@ -25,8 +25,8 @@ IF FraudDetector.verdict = "FRAUD"
 DO Notify user
 
 WHEN hourly DO FraudReport and bulk
- FOR each Transaction WHERE status = "pending" DO CALL FraudDetector.analyze
-FOR each FraudAlert WHERE score > 0.9 DO CALL FraudTeam.notify
+ FOR EACH Transaction WHERE status = "pending" DO CALL FraudDetector.analyze
+FOR EACH FraudAlert WHERE score > 0.9 DO CALL FraudTeam.notify
 
 DO Backup and immutable
 DO GDPR delete user and audit

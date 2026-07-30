@@ -320,7 +320,72 @@ DO ExportData and idempotent
  Call postgres.query "SELECT * FROM reviews WHERE customer_id = Customer.id"
  Call s3.upload bucket = "luxurystore-gdpr-exports" key = "exports/{Customer.id}.json" body = Export.data
  Call audit.log action = "GDPR_EXPORT" entity = "Customer" id = Customer.id
-DO.Emit gdpr.data_exported`
+DO.Emit gdpr.data_exported`,
+
+  "restaurant.ataj": `APP EspaceYafaRestaurant multi-cloud aws gcp
+
+HAVE Restaurant with id uuid name string address string phone string email string description text
+HAVE MenuItem with id uuid name string description text price decimal category enum image_url string available bool featured bool
+HAVE Order with id uuid customer_id uuid items json subtotal decimal tax decimal total decimal status enum customer_name string customer_phone string delivery_address string
+HAVE Reservation with id uuid customer_name string customer_phone string email string party_size int date date time time special_requests text status enum
+
+USE postgres PIN 2.0.0
+USE redis PIN 2.0.0
+USE sendgrid PIN 2.0.0
+USE audit PIN 1.0.0
+
+SHOW RestaurantInfo and public idempotent
+SHOW Menu and public idempotent
+SHOW FeaturedItems and public idempotent
+SHOW Categories and public idempotent
+SHOW OrderForm and public
+SHOW ReservationForm and public
+SHOW Reviews and public idempotent
+SHOW AdminDashboard and role admin
+
+DO GetRestaurantInfo and idempotent
+ Call postgres.query "SELECT * FROM restaurant WHERE id = 'espace-yafa-casa'"
+ DO Emit restaurant.info_loaded
+
+DO GetMenu and idempotent
+ Call postgres.query "SELECT * FROM menu_items WHERE available = true ORDER BY category, display_order"
+ DO Emit menu.loaded
+
+DO CreateOrder and idempotent circuit
+ Call postgres.insert table = "orders" values = {customer_name: Order.customer_name, items: Order.items, total: Order.total, status: "pending"}
+ DO Emit order.created
+
+DO CreateReservation and idempotent circuit
+ Call postgres.insert table = "reservations" values = {customer_name: Reservation.customer_name, customer_phone: Reservation.customer_phone, party_size: Reservation.party_size, date: Reservation.date, time: Reservation.time, status: "confirmed"}
+ DO Emit reservation.created
+`,
+
+  "menu.ataj": `APP EspaceYafaMenu multi-cloud aws gcp
+
+HAVE MenuItem with id uuid name string name_ar string description text description_ar text price decimal category enum image_url string available bool featured bool
+HAVE Category with id uuid name string name_ar string description text icon string display_order int
+
+USE postgres PIN 2.0.0
+USE redis PIN 2.0.0
+
+SHOW FullMenu and public idempotent
+SHOW MenuByCategory and public idempotent
+SHOW DailySpecials and public idempotent
+SHOW PopularItems and public idempotent
+SHOW MenuAdmin and role admin
+
+DO GetFullMenu and idempotent
+ Call postgres.query "SELECT * FROM menu_items WHERE available = true ORDER BY category, display_order"
+ DO Emit menu.full_loaded
+
+DO GetDailySpecials and idempotent
+ Call postgres.query "SELECT * FROM daily_specials WHERE available = true"
+ DO Emit menu.daily_specials_loaded
+
+DO GetPopularItems and idempotent
+ Call postgres.query "SELECT * FROM menu_items WHERE featured = true LIMIT 10"
+ DO Emit menu.popular_loaded
+`
 };
 
 const fs = require('fs');
@@ -385,6 +450,48 @@ function buildResponse(parsed, req) {
       return { action: 'audit_logged', immutable: true, entries: AUDIT_LOG.slice(-20), summary: { total_requests: totalReq, error_count: errCount, error_rate: parseFloat((errCount / Math.max(1, totalReq) * 100).toFixed(2)), avg_response_time_ms: parseFloat(avgRT.toFixed(2)), endpoints_hit: [...new Set(AUDIT_LOG.map(e => e.endpoint))].length } };
     case app.includes('GDPR'):
       return { action: 'gdpr_anonymized', compliant: true, entries: [] };
+    case app.includes('EspaceYafaRestaurant') || app.includes('Restaurant'):
+      return {
+        restaurant: {
+          id: 'espace-yafa-casa',
+          name: 'Espace Yafa',
+          name_ar: 'فضاء يافا',
+          address: 'HF98+VPM, Casablanca 20250, Morocco',
+          phone: '+212 522-123456',
+          email: 'info@espaceyafa.ma',
+          description: 'Authentic Moroccan cuisine in the heart of Casablanca. Experience the rich flavors of traditional Moroccan dishes in an elegant atmosphere.',
+          hours: {
+            monday_friday: '12:00 - 22:00',
+            saturday_sunday: '11:00 - 23:00',
+            ramadan: 'Hours may vary'
+          }
+        },
+        keywords: keywordList
+      };
+    case app.includes('EspaceYafaMenu') || app.includes('Menu'):
+      return {
+        categories: [
+          { id: 1, name: 'Appetizers', name_ar: 'المقبلات', description: 'Cold and hot starters', icon: '🥗' },
+          { id: 2, name: 'Main Courses', name_ar: 'الأطباق الرئيسية', description: 'Traditional Moroccan dishes', icon: '🍽️' },
+          { id: 3, name: 'Tagines', name_ar: 'الطاجين', description: 'Slow-cooked traditional dishes', icon: '🥘' },
+          { id: 4, name: 'Grilled Meats', name_ar: 'المشاوي', description: 'Fresh grilled selections', icon: '🥩' },
+          { id: 5, name: 'Seafood', name_ar: 'المأكولات البحرية', description: 'Fresh Mediterranean seafood', icon: '🐟' },
+          { id: 6, name: 'Desserts', name_ar: 'الحلويات', description: 'Traditional Moroccan sweets', icon: '🍰' },
+          { id: 7, name: 'Beverages', name_ar: 'المشروبات', description: 'Refreshing drinks', icon: '🥤' }
+        ],
+        menu_items: [
+          { id: 'item_001', name: 'Harira Soup', name_ar: 'حساء الحريرة', description: 'Traditional tomato and lentil soup with herbs', price: 45.00, category: 1, image_url: 'https://images.unsplash.com/photo-1547592166-23ac45744acd', available: true, featured: true },
+          { id: 'item_002', name: 'Moroccan Salad', name_ar: 'السلطة المغربية', description: 'Fresh tomatoes, cucumbers, onions with lemon dressing', price: 55.00, category: 1, image_url: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd', available: true, featured: false },
+          { id: 'item_003', name: 'Chicken Pastilla', name_ar: 'بسطيلة الدجاج', description: 'Sweet and savory pastry with shredded chicken and almonds', price: 120.00, category: 2, image_url: 'https://images.unsplash.com/photo-1565299624946-b28f40a7ae38', available: true, featured: true },
+          { id: 'item_004', name: 'Lamb Tagine with Prunes', name_ar: 'طاجين لحم بالبرقوق', description: 'Slow-cooked lamb with prunes, almonds and spices', price: 180.00, category: 3, image_url: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836', available: true, featured: true },
+          { id: 'item_005', name: 'Fish Tagine', name_ar: 'طاجين السمك', description: 'Fresh fish with vegetables and chermoula sauce', price: 160.00, category: 3, image_url: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb', available: true, featured: false },
+          { id: 'item_006', name: 'Couscous Royal', name_ar: 'الكسكس الملكي', description: 'Steamed couscous with seven vegetables and meat', price: 150.00, category: 2, image_url: 'https://images.unsplash.com/photo-1511690743698-d9d18f7e20f1', available: true, featured: true },
+          { id: 'item_007', name: 'Grilled Kebab', name_ar: 'كباب مشوي', description: 'Marinated beef skewers with grilled vegetables', price: 140.00, category: 4, image_url: 'https://images.unsplash.com/photo-1529006557810-274b9b2fc783', available: true, featured: false },
+          { id: 'item_008', name: 'Kaab el Ghazal', name_ar: 'كعب الغزال', description: 'Traditional gazelle horns pastry with almond filling', price: 65.00, category: 6, image_url: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb', available: true, featured: true },
+          { id: 'item_009', name: 'Mint Tea', name_ar: 'أتاي بالنعناع', description: 'Traditional Moroccan mint tea with fresh mint', price: 25.00, category: 7, image_url: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc', available: true, featured: true }
+        ],
+        keywords: keywordList
+      };
     default:
       return { app, keywords: keywordList };
   }

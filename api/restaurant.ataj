@@ -1,0 +1,104 @@
+APP EspaceYafaRestaurant multi-cloud aws gcp
+
+HAVE Restaurant with id uuid name string address string phone string email string description text
+HAVE MenuItem with id uuid name string description text price decimal category enum image_url string available bool featured bool
+HAVE Order with id uuid customer_id uuid items json subtotal decimal tax decimal total decimal status enum customer_name string customer_phone string delivery_address string
+HAVE Reservation with id uuid customer_name string customer_phone string email string party_size int date date time time special_requests text status enum
+HAVE Review with id uuid restaurant_id uuid customer_name string rating int comment text created timestamp
+HAVE Category with id uuid name string description string display_order int
+
+USE postgres PIN 2.0.0
+USE redis PIN 2.0.0
+USE sendgrid PIN 2.0.0
+USE audit PIN 1.0.0
+USE cloudinary PIN 1.0.0
+
+SHOW RestaurantInfo and public idempotent
+SHOW Menu and public idempotent
+SHOW FeaturedItems and public idempotent
+SHOW Categories and public idempotent
+SHOW OrderForm and public
+SHOW ReservationForm and public
+SHOW Reviews and public idempotent
+SHOW AdminDashboard and role admin
+
+DO GetRestaurantInfo and idempotent
+ Call postgres.query "SELECT * FROM restaurant WHERE id = 'espace-yafa-casa'"
+ DO Emit restaurant.info_loaded
+
+DO GetMenu and idempotent
+ Call postgres.query "SELECT * FROM menu_items WHERE available = true ORDER BY category, display_order"
+ Call redis.setex key = "menu:all" ttl = 300 value = menu_items
+ DO Emit menu.loaded
+
+DO GetFeaturedItems and idempotent
+ Call postgres.query "SELECT * FROM menu_items WHERE featured = true AND available = true"
+ DO Emit menu.featured_loaded
+
+DO GetCategories and idempotent
+ Call postgres.query "SELECT * FROM categories ORDER BY display_order"
+ DO Emit categories.loaded
+
+DO CreateOrder and idempotent circuit
+ Call postgres.insert table = "orders" values = {customer_id: Customer.id, items: Order.items, subtotal: Order.subtotal, tax: Order.tax, total: Order.total, status: "pending", customer_name: Order.customer_name, customer_phone: Order.customer_phone, delivery_address: Order.delivery_address}
+ Call sendgrid.send template = "order_confirmation" to = Order.customer_email name = Order.customer_name order_id = Order.id total = Order.total
+ Call audit.log action = "ORDER_CREATED" entity = "Order" id = Order.id
+ DO Emit order.created
+
+DO UpdateOrderStatus and idempotent circuit approval from 1 Manager
+ Call postgres.update table = "orders" set = {status: Order.status} where = "id = Order.id"
+ Call sendgrid.send template = "order_status_update" to = Order.customer_email order_id = Order.id status = Order.status
+ Call audit.log action = "ORDER_STATUS_UPDATED" entity = "Order" id = Order.id
+ DO Emit order.status_updated
+
+DO CreateReservation and idempotent circuit
+ Call postgres.insert table = "reservations" values = {customer_name: Reservation.customer_name, customer_phone: Reservation.customer_phone, email: Reservation.email, party_size: Reservation.party_size, date: Reservation.date, time: Reservation.time, special_requests: Reservation.special_requests, status: "confirmed"}
+ Call sendgrid.send template = "reservation_confirmation" to = Reservation.email name = Reservation.customer_name date = Reservation.date time = Reservation.time party_size = Reservation.party_size
+ Call audit.log action = "RESERVATION_CREATED" entity = "Reservation" id = Reservation.id
+ DO Emit reservation.created
+
+DO CancelReservation and idempotent circuit
+ Call postgres.update table = "reservations" set = {status: "cancelled"} where = "id = Reservation.id"
+ Call sendgrid.send template = "reservation_cancelled" to = Reservation.email reservation_id = Reservation.id
+ Call audit.log action = "RESERVATION_CANCELLED" entity = "Reservation" id = Reservation.id
+ DO Emit reservation.cancelled
+
+DO SubmitReview and idempotent circuit
+ Call postgres.insert table = "reviews" values = {restaurant_id: 'espace-yafa-casa', customer_name: Review.customer_name, rating: Review.rating, comment: Review.comment}
+ Call audit.log action = "REVIEW_SUBMITTED" entity = "Review" id = Review.id
+ DO Emit review.submitted
+
+DO GetReviews and idempotent
+ Call postgres.query "SELECT * FROM reviews WHERE restaurant_id = 'espace-yafa-casa' ORDER BY created DESC"
+ DO Emit reviews.loaded
+
+WHEN daily DO UpdateMenuCache and idempotent
+ FOR EACH MenuItem DO
+  Call redis.setex key = "menu:{MenuItem.id}" ttl = 86400 value = MenuItem
+ END DO
+ DO Audit and immutable
+
+ON order.created
+DO SendOrderNotification and idempotent
+ Call sendgrid.send template = "new_order_notification" to = "restaurant@espaceyafa.ma" order_id = Order.id customer_name = Order.customer_name total = Order.total
+ DO Emit notification.sent
+
+ON reservation.created
+DO SendReservationNotification and idempotent
+ Call sendgrid.send template = "new_reservation_notification" to = "restaurant@espaceyafa.ma" reservation_id = Reservation.id customer_name = Reservation.customer_name date = Reservation.date time = Reservation.time
+ DO Emit notification.sent
+
+DO GDPR delete customer and audit
+ Call postgres.anonymize table = "orders" where = "customer_id = Customer.id"
+ Call postgres.anonymize table = "reservations" where = "customer_email = Customer.email"
+ Call postgres.anonymize table = "reviews" where = "customer_name = Customer.name"
+ Call redis.del key = "customer:{Customer.id}"
+ Call audit.log action = "GDPR_DELETE" entity = "Customer" id = Customer.id
+ DO Emit customer.deleted
+
+DO Backup and immutable
+ Call postgres.dump table = "menu_items" to = "s3://espace-yafa-backups/menu/"
+ Call postgres.dump table = "orders" to = "s3://espace-yafa-backups/orders/"
+ Call postgres.dump table = "reservations" to = "s3://espace-yafa-backups/reservations/"
+ Call postgres.dump table = "reviews" to = "s3://espace-yafa-backups/reviews/"
+ DO Audit and immutable

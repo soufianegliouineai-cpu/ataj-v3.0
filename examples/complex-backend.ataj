@@ -80,7 +80,7 @@ DO ProcessGitHubEvent and idempotent circuit
 DO Emit github.event.processed
 
 WHEN 1st of month DO MonthlyBilling and bulk
- FOR each Subscription WHERE status = "active" DO
+ FOR EACH Subscription WHERE status = "active" DO
   Call invoice.generate subscription_id = Subscription.id period_start = Subscription.current_period_start period_end = Subscription.current_period_end
   Call kafka.publish topic = "invoice.generated" message = Invoice.id
 
@@ -92,17 +92,17 @@ WHEN hourly DO HealthCheck and bulk
  Call cloudwatch.put_metric name = "health_check" value = 1
 
 WHEN daily DO Cleanup and bulk
- FOR each Session WHERE expires_at < now() DO
+ FOR EACH Session WHERE expires_at < now() DO
   Call session.delete id = Session.id
- FOR each RateLimit WHERE reset_at < now() DO
+ FOR EACH RateLimit WHERE reset_at < now() DO
   Call rate_limit.delete id = RateLimit.id
- FOR each SearchIndex WHERE created_at < now() - 30 days DO
+ FOR EACH SearchIndex WHERE created_at < now() - 30 days DO
   Call elastic.delete index = SearchIndex.index_type id = SearchIndex.id
- FOR each Notification WHERE read = true AND created_at < now() - 90 days DO
+ FOR EACH Notification WHERE read = true AND created_at < now() - 90 days DO
   Call notification.delete id = Notification.id
 
 DO Backup and immutable
- FOR each Table IN [accounts, profiles, sessions, audit_logs, invoices, subscriptions, notifications, rate_limits, search_indexes, webhooks] DO
+ FOR EACH Table IN [accounts, profiles, sessions, audit_logs, invoices, subscriptions, notifications, rate_limits, search_indexes, webhooks] DO
   Call s3.put bucket = "ataj-backup" key = "daily/{table}/{uuid}.json" body = Table.export
   Call postgres.dump table = Table.name to = "s3://ataj-backup/database/"
 
@@ -120,7 +120,7 @@ DO GDPR delete user and audit
 DO Emit user.deleted
 
 DO Reindex and bulk
- FOR each Index IN SearchIndex DO
+ FOR EACH Index IN SearchIndex DO
   Call elastic.reindex index = Index.index_type from = Index.id
  Call audit.log action = "REINDEX" entity = "SearchIndex" id = Index.id
 DO Emit reindex.completed

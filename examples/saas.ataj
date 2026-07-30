@@ -7,7 +7,7 @@ HAVE User with id uuid plan enum
 HAVE Usage with user_id uuid tokens int
 
 WHEN 1st DO Billing and bulk
- FOR each User DO Call stripe.charge
+ FOR EACH User DO Call stripe.charge
 
 DO AI and cost-cap $500 circuit
  Call openai.generate prompt
