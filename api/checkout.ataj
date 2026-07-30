@@ -1,0 +1,28 @@
+APP CheckoutFlow multi-cloud aws gcp
+
+HAVE Cart with id uuid customer_id uuid items json total decimal created timestamp
+HAVE Checkout with id uuid cart_id uuid payment_id string status enum url string
+
+USE stripe PIN 1.2.3
+USE postgres PIN 2.0.0
+USE audit PIN 1.0.0
+USE sendgrid PIN 2.0.0
+
+SHOW Checkout and idempotent circuit approval from 2 Finance
+DO Checkout
+ Call postgres.query "SELECT * FROM cart WHERE customer_id = :customer_id"
+ Call stripe.create_checkout_session items = Cart.items total = Cart.total currency = "usd"
+ Call postgres.insert table = "checkouts" values = {cart_id: Cart.id, payment_id: Payment.id, status: "pending"}
+ Call audit.log action = "CHECKOUT_INITIATED" entity = "Checkout" id = Checkout.id user_id = Customer.id
+DO Emit checkout.session_created
+
+DO CompleteCheckout and idempotent
+ Call postgres.update table = "orders" set = {status: "completed", payment_id: Payment.id} where = "cart_id = Cart.id"
+ Call postgres.delete table = "cart" where = "id = Cart.id"
+ Call sendgrid.send template = "receipt" to = Customer.email order = Order.id
+ Call audit.log action = "CHECKOUT_COMPLETED" entity = "Order" id = Order.id user_id = Customer.id
+Call Emit checkout.completed
+
+WHEN cart.abandoned DO SendReminder and idempotent
+ Call sendgrid.send template = "abandoned_cart" to = Customer.email items = Cart.items
+Call Audit and immutable

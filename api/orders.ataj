@@ -1,0 +1,44 @@
+APP OrderProcessor multi-cloud aws gcp
+
+HAVE Order with id uuid customer_id uuid items json subtotal decimal tax decimal shipping decimal total decimal status enum payment_id string
+HAVE Customer with id uuid email string tier enum
+
+USE stripe PIN 1.2.3
+USE postgres PIN 2.0.0
+USE sendgrid PIN 2.0.0
+USE audit PIN 1.0.0
+USE redis PIN 2.0.0
+
+SHOW OrderProcessing and idempotent circuit approval from 2 Finance
+DO CreateOrder
+ Call postgres.insert table = "orders" values = {customer_id: Customer.id, items: Order.items, subtotal: Order.subtotal, status: "pending"}
+ Call audit.log action = "ORDER_CREATED" entity = "Order" id = Order.id user_id = Customer.id
+ DO Emit order.created
+
+DO ProcessPayment
+ Call stripe.create_payment_intent amount = Order.total currency = "usd" metadata = {order_id: Order.id}
+ Call postgres.update table = "orders" set = {status: "paid", payment_id: Payment.id} where = "id = Order.id"
+ DO Emit payment.processed
+
+DO FulfillOrder and idempotent
+ Call postgres.update table = "orders" set = {status: "fulfilled"} where = "id = Order.id"
+ Call sendgrid.send template = "order_confirmation" to = Customer.email order = Order.id
+ Call redis.del key = "cart:{Customer.id}"
+ Call audit.log action = "ORDER_FULFILLED" entity = "Order" id = Order.id user_id = Customer.id
+ DO Emit order.fulfilled
+
+DO CancelOrder and idempotent circuit approval from 1 Support
+ Call postgres.update table = "orders" set = {status: "cancelled"} where = "id = Order.id"
+ Call stripe.refund payment_id = Order.payment_id
+ Call sendgrid.send template = "order_cancelled" to = Customer.email
+ Call audit.log action = "ORDER_CANCELLED" entity = "Order" id = Order.id user_id = Customer.id
+ DO Emit order.cancelled
+
+ON payment.completed
+DO FulfillOrder and idempotent
+
+ON order.cancelled
+DO RefundPayment and idempotent circuit
+ Call stripe.refund payment_id = Order.payment_id
+ Call audit.log action = "REFUND_PROCESSED" entity = "Order" id = Order.id user_id = Customer.id
+ DO Emit refund.processed

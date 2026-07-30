@@ -1,0 +1,29 @@
+APP AnalyticsEngine multi-cloud aws gcp
+
+HAVE Analytics with id uuid event string properties json customer_id uuid session_id uuid created timestamp
+HAVE Report with id uuid type string data json generated_at timestamp
+
+USE postgres PIN 2.0.0
+USE s3 PIN 1.0.0
+USE audit PIN 1.0.0
+
+SHOW Analytics and idempotent circuit bulk approval from 1 Analytics
+DO TrackEvent
+ Call postgres.insert table = "analytics" values = {event: Analytics.event, properties: Analytics.properties, customer_id: Analytics.customer_id, session_id: Analytics.session_id}
+ Call audit.log action = "EVENT_TRACKED" entity = "Analytics" metadata = {event: Analytics.event}
+DO.Emit event.tracked
+
+DO GenerateReport and bulk
+ FOR each day in Report.date_range DO
+  Call postgres.query "SELECT event, COUNT(*), AVG(properties->>'value') FROM analytics WHERE created_at BETWEEN $1 AND $2 GROUP BY event"
+  Call s3.upload bucket = "luxurystore-analytics" key = "reports/{report_id}.csv" body = Report.data
+ End For Do
+ Call audit.log action = "REPORT_GENERATED" entity = "Report" id = Report.id
+DO.Emit report.generated
+
+DO GDPR_Report and bulk approval from 2 Compliance
+ FOR each Customer DO
+  Call postgres.query "SELECT * FROM analytics WHERE customer_id = Customer.id"
+ End For Do
+ Call audit.log action = "GDPR_ANALYTICS_EXPORT" entity = "Analytics" user_id = Customer.id
+DO.Emit gdpr.data_exported

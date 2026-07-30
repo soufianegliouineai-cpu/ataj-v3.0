@@ -1,0 +1,25 @@
+APP WishlistService multi-cloud aws gcp
+
+HAVE Wishlist with id uuid customer_id uuid product_ids json created timestamp
+
+USE redis PIN 2.0.0
+USE postgres PIN 2.0.0
+USE audit PIN 1.0.0
+
+SHOW Wishlist and idempotent circuit
+DO AddToWishlist
+ Call redis.sadd key = "wishlist:{Customer.id}" value = Product.id
+ Call postgres.upsert table = "wishlists" values = {customer_id: Customer.id, product_ids: Wishlist.product_ids}
+ Call audit.log action = "ADDED_TO_WISHLIST" entity = "Product" id = Product.id user_id = Customer.id
+DO.Emit wishlist.updated
+
+DO RemoveFromWishlist and idempotent circuit
+ Call redis.srem key = "wishlist:{Customer.id}" value = Product.id
+ Call postgres.update table = "wishlists" set = {product_ids: Wishlist.product_ids} where = "customer_id = Customer.id"
+ Call audit.log action = "REMOVED_FROM_WISHLIST" entity = "Product" id = Product.id user_id = Customer.id
+DO.Emit wishlist.updated
+
+DO GetWishlist and idempotent
+ Call redis.smembers key = "wishlist:{Customer.id}"
+ Call postgres.query "SELECT * FROM products WHERE id IN (Wishlist.product_ids)"
+DO.Emit wishlist.loaded

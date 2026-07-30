@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/ataj-runtime.js", "use": "@vercel/node" },
+    { "src": "frontend/**", "use": "@vercel/static" },
+    { "src": "examples/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/ataj-runtime.js" },
+    { "src": "/api", "dest": "/api/ataj-runtime.js" },
+    { "src": "/(.*)", "dest": "/frontend/$1" },
+    { "src": "/", "dest": "/frontend/index.html" }
+  ]
+}

@@ -1,0 +1,8 @@
+APP Counter frontend react
+
+HAVE Count number
+
+SHOW Title "Counter" 
+SHOW Stat "{Count}" "Count" 
+SHOW Button "Increment" ON Click DO Count = Count + 1
+SHOW Button "Decrement" ON Click DO Count = Count - 1

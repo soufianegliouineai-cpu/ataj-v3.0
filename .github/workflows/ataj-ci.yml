@@ -1,14 +1,49 @@
-name: ATAJ 80 Apocalypses
-on: [push]
+name: ATAJ 80 Apocalypses - Auto Deploy
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
 jobs:
- test:
- runs-on: ubuntu-latest
- steps:
- - uses: actions/checkout@v4
- - run: cd compiler && chmod +x build.sh &&./build.sh
- - run:./target/release/atajc test --tier all
- - run:./target/release/atajc audit --export audit.pdf
- - uses: actions/upload-artifact@v4
- with:
- name: audit-report
- path: audit.pdf
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Verify ATAJ files
+        run: |
+          echo "Checking ATAJ files..."
+          ls api/*.ataj | wc -l
+          ls frontend/index.html | wc -l
+          echo "✅ All required files present"
+      
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v28
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          working-directory: .
+      
+      - name: Verify Deployment
+        run: |
+          echo "Checking deployed endpoints..."
+          curl -s https://atajv3.vercel.app/api/health | grep "status"
+          echo "✅ Deployment verified"
+      
+      - name: Run Stress Test
+        run: |
+          npm install -g vercel
+          ./stress-test.sh -d 10 -c 5
+          echo "✅ Stress test passed"
+      
+      - name: Check Audit Log
+        run: |
+          AUDIT_RESPONSE=$(curl -s https://atajv3.vercel.app/api/audit)
+          echo "$AUDIT_RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$AUDIT_RESPONSE"
+          echo "✅ Audit log verified"

@@ -1,0 +1,92 @@
+APP LuxuryStore multi-cloud aws gcp
+
+USE stripe PIN 1.2.3
+USE aws-sdk PIN 1.0.0
+USE gcp-sdk PIN 1.0.0
+USE cloudinary PIN 1.0.0
+USE sendgrid PIN 2.0.0
+USE redis PIN 7.0.0
+USE elastic PIN 8.1.0
+
+HAVE Customer with id uuid email string name string tier enum phone string address json
+HAVE Product with id uuid name string description text price decimal compare_at decimal image_url string category enum stock int featured bool
+HAVE Cart with id uuid customer_id uuid items json total decimal created timestamp
+HAVE Order with id uuid customer_id uuid items json subtotal decimal tax decimal shipping decimal total decimal status enum payment_id string
+HAVE Payment with id uuid order_id uuid amount decimal stripe_id string status enum created timestamp
+HAVE Review with id uuid product_id uuid customer_id uuid rating int title string body text verified bool
+HAVE Wishlist with id uuid customer_id uuid product_ids json created timestamp
+HAVE Analytics with id uuid event string properties json customer_id uuid session_id uuid created timestamp
+
+SHOW Storefront and public
+SHOW ProductCatalog
+SHOW ProductDetail
+SHOW ShoppingCart
+SHOW Checkout
+SHOW CustomerProfile
+SHOW AdminDashboard
+SHOW AnalyticsDashboard
+
+DO AddToWishlist and idempotent circuit
+ Call redis.sadd key = "wishlist:{Customer.id}" value = Product.id
+ Call audit.log action = "ADDED_TO_WISHLIST" entity = "Product" id = Product.id user_id = Customer.id
+ DO Emit wishlist.updated
+
+DO RemoveFromWishlist and idempotent circuit
+ Call redis.srem key = "wishlist:{Customer.id}" value = Product.id
+ DO Audit and immutable
+
+DO ProcessCheckout and idempotent circuit approval from 2 Finance
+ Call postgres.insert table = "orders" values = {customer_id: Customer.id, items: Cart.items, subtotal: Cart.total, status: "pending"}
+ Call stripe.create_payment_intent amount = Cart.total currency = "usd" metadata = {order_id: Order.id}
+ Call postgres.update table = "orders" set = {payment_id: Payment.id} where = "id = Order.id"
+ Call inventory.decrement product_id = Cart.items[].product_id quantity = Cart.items[].quantity
+ Call sendgrid.send template = "order_confirmation" to = Customer.email order = Order.id
+ Call redis.del key = "cart:{Customer.id}"
+ Call audit.log action = "CHECKOUT_COMPLETED" entity = "Order" id = Order.id user_id = Customer.id
+ DO Emit checkout.completed
+
+DO SubmitReview and idempotent circuit
+ Call postgres.insert table = "reviews" values = {product_id: Review.product_id, customer_id: Review.customer_id, rating: Review.rating, title: Review.title, body: Review.body, verified: true}
+ Call elastic.index index = "reviews" document = Review
+ Call audit.log action = "REVIEW_SUBMITTED" entity = "Review" id = Review.id user_id = Review.customer_id
+ DO Emit review.submitted
+
+DO TrackEvent and idempotent circuit
+ Call postgres.insert table = "analytics" values = {event: Analytics.event, properties: Analytics.properties, customer_id: Analytics.customer_id}
+ Call audit.log action = "EVENT_TRACKED" entity = "Analytics" metadata = {event: Analytics.event}
+ DO Emit event.tracked
+
+DO GenerateReport and bulk approval from 1 Analytics
+ FOR each Product DO
+  Call elastic.search index = "reviews" query = {product_id: Product.id} aggregate = "avg_rating"
+  Call postgres.update table = "products" set = {rating: Review.avg_rating, reviews: Review.count} where = "id = Product.id"
+ FOR each Order WHERE status = "completed" AND created_at >= Report.start_date AND created_at <= Report.end_date DO
+  Call postgres.query "SELECT SUM(total) FROM orders WHERE status = 'completed' AND created_at BETWEEN $1 AND $2"
+  Call s3.upload bucket = "luxurystore-reports" key = "sales-{date}.csv" body = Report.data
+ DO Audit and immutable
+ DO Emit report.generated
+
+ON order.completed
+DO SendReviewRequest and idempotent
+ Call sendgrid.send template = "review_request" to = Order.customer.email order = Order.id
+ DO Emit review.requested
+
+ON cart.abandoned
+DO SendAbandonedCartEmail and idempotent
+ Call sendgrid.send template = "abandoned_cart" to = Cart.customer.email items = Cart.items
+ DO Emit email.sent
+
+WHEN 1st of month DO GenerateMonthlyReport and bulk
+ FOR each Product DO UpdateProductAnalytics
+ FOR each Customer DO UpdateCustomerInsights
+ DO Audit and immutable
+
+DO GDPR delete customer and audit
+ Call postgres.anonymize table = "customers" where = "id = Customer.id"
+ Call postgres.anonymize table = "orders" where = "customer_id = Customer.id"
+ Call postgres.anonymize table = "reviews" where = "customer_id = Customer.id"
+ Call postgres.anonymize table = "analytics" where = "customer_id = Customer.id"
+ Call redis.del key = "wishlist:{Customer.id}"
+ Call sendgrid.send template = "account_deleted" to = Customer.email
+ DO Audit and immutable
+ DO Emit customer.deleted

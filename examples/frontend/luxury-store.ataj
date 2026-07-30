@@ -1,0 +1,46 @@
+APP LuxuryStoreFrontend frontend react
+
+HAVE Product with name string price number image string category string description string
+
+PAGE Store and public
+  SHOW Logo with type="Logo" data={"text":"ATAJ.v3"}
+  SHOW Nav with type="Nav" data={"links":["Home","Products","About","Contact"]}
+  SHOW Title with type="Title" data={"text":"The 8 Keywords That Survive 80 Apocalypses"}
+  SHOW Subtitle with type="Subtitle" data={"text":"ATAJ v3.0 LTS — Nuclear-proof programming language"}
+  
+  SHOW Section with id="stats" layout="grid cols-5 gap-6"
+    FOR EACH stat IN stats
+      SHOW Card with type="Stat" data=stat
+  
+  SHOW Section with id="products" layout="grid cols-3 gap-6"
+    FOR EACH product IN products
+      SHOW Card with type="Product" data=product
+      EVENT onClick and AddToCart product.id
+  
+  SHOW Section with id="api" layout="grid cols-2 gap-6"
+    FOR EACH endpoint IN api_endpoints
+      SHOW Card with type="ApiEndpoint" data=endpoint
+  
+  SHOW Footer with type="Footer" data={"text":"ATAJ v3.0 LTS — The 8-Keyword Language That Survives 80 Apocalypses"}
+
+STATS stats with [
+  {"number": "8", "label": "Frozen Keywords"},
+  {"number": "$100k", "label": "Warranty"},
+  {"number": "2031", "label": "Stable Until"},
+  {"number": "0", "label": "CVEs"},
+  {"number": "18MB", "label": "Binary Size"}
+]
+
+PRODUCTS products with [
+  {"name": "Obsidian Wallet", "price": 24900, "image": "/images/wallet.jpg", "category": "Accessories", "description": "Hand-stitched Italian leather. Survives 80 apocalypses."},
+  {"name": "Titanium Clip", "price": 18900, "image": "/images/clip.jpg", "category": "Accessories", "description": "Grade 5 titanium. Won't crack, won't bend."},
+  {"name": "ATAJ SDK", "price": 99900, "image": "/images/sdk.jpg", "category": "Software", "description": "8-keyword language. Includes formal verification."}
+]
+
+API_ENDPOINTS api_endpoints with [
+  {"method": "GET", "endpoint": "/api/health", "desc": "System status", "code": "APP HealthCheck\\nSHOW HealthCheck"},
+  {"method": "GET", "endpoint": "/api/products", "desc": "Product catalog", "code": "APP ProductCatalog\\nSHOW ProductCatalog"},
+  {"method": "POST", "endpoint": "/api/orders", "desc": "Create order", "code": "APP OrderProcessor\\nSHOW OrderProcessing"}
+]
+
+STATE cart and []

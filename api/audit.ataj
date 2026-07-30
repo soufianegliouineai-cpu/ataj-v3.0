@@ -1,0 +1,23 @@
+APP AuditLogger multi-cloud aws gcp
+
+HAVE AuditEntry with id uuid action string entity string entity_id string user_id string details json timestamp timestamp immutable bool
+
+USE s3 PIN 1.0.0
+USE postgres PIN 2.0.0
+
+SHOW AuditTrail and idempotent immutable
+DO LogAndImmutable
+ Call postgres.insert table = "audit_log" values = {action: AuditEntry.action, entity: AuditEntry.entity, entity_id: AuditEntry.entity_id, user_id: AuditEntry.user_id, details: AuditEntry.details, timestamp: now()}
+ Call s3.upload bucket = "luxurystore-audit-worm" key = "logs/{date}/{AuditEntry.id}.json" body = AuditEntry
+ Call postgres.update table = "audit_log" set = {immutable: true} where = "id = AuditEntry.id"
+DO.Emit audit.entry_logged
+
+DO QueryAuditTrail and idempotent bulk
+ Call postgres.query "SELECT * FROM audit_log WHERE entity = :entity AND created_at BETWEEN :start AND :end ORDER BY created_at DESC"
+ Call s3.list bucket = "luxurystore-audit-worm" prefix = "logs/{date_range}/"
+DO.Emit audit.query_result
+
+DO DeleteNothing and immutable
+// Audit entries NEVER delete. This is an immutable log.
+// Any attempt to delete will be rejected by the circuit breaker.
+DO Emit audit.immutable_guaranteed

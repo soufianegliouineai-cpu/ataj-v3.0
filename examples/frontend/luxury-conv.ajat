@@ -1,0 +1,14 @@
+APP LuxuryStore frontend react
+
+HAVE Product name string price number image string category string description string
+
+SHOW Header "ATAJ Store" links=["Home" "Products" "About"] layout="store-header"
+SHOW Title "Luxury Goods" 
+SHOW Section id="featured" layout="product-grid"
+  SHOW Product name="Osprey Wallet" price=24900 image="/wallet.jpg" category="Accessories" description="Full-grain leather" layout="featured-product"
+  SHOW Product name="Titanium Watch" price=89900 image="/watch.jpg" category="Accessories" description="Swiss movement" layout="featured-product"
+SHOW Section id="categories" layout="category-grid"
+  SHOW Category title="Accessories" icon="💎" count=12
+  SHOW Category title="Tech" icon="💻" count=8
+  SHOW Category title="Home" icon="🏠" count=15
+SHOW Footer "© 2026 ATAJ Store. All rights reserved."

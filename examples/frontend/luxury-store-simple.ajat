@@ -1,0 +1,49 @@
+APP LuxuryStore frontend react
+
+HAVE Product name string price number image string category string description string
+
+SHOW Header "ATAJ.v3" links=["Home" "Products" "About" "Contact"] layout="flex row items-center justify-between bg-black text-gold p-4"
+
+SHOW Title "The 8 Keywords That Survive 80 Apocalypses" layout="text-5xl font-bold text-center"
+
+SHOW Subtitle "ATAJ v3.0 LTS — Nuclear-proof programming language" layout="text-xl text-center text-gray-400 mt-4"
+
+SHOW Section id="stats" layout="grid cols-5 gap-6"
+  SHOW Stat number="8" label="Frozen Keywords" layout="flex flex-col items-center p-6 bg-white rounded-xl shadow"
+  SHOW Stat number="$100k" label="Warranty" layout="flex flex-col items-center p-6 bg-white rounded-xl shadow"
+  SHOW Stat number="2031" label="Stable Until" layout="flex flex-col items-center p-6 bg-white rounded-xl shadow"
+  SHOW Stat number="0" label="CVEs" layout="flex flex-col items-center p-6 bg-white rounded-xl shadow"
+  SHOW Stat number="18MB" label="Binary Size" layout="flex flex-col items-center p-6 bg-white rounded-xl shadow"
+
+SHOW Section id="products" layout="grid cols-3 gap-6"
+  FOR EACH p IN products
+    SHOW Card data=p layout="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition"
+    EVENT onClick and AddToCart p.id
+
+SHOW Section id="api" layout="grid cols-2 gap-6"
+  FOR EACH e IN api_endpoints
+    SHOW Card data=e layout="bg-gray-900 text-green-400 p-4 rounded-lg font-mono"
+
+SHOW Footer "ATAJ v3.0 LTS — The 8-Keyword Language That Survives 80 Apocalypses" layout="text-center py-6 bg-gray-800 text-gray-400"
+
+STATS stats with [
+  {"number": "8", "label": "Frozen Keywords"},
+  {"number": "$100k", "label": "Warranty"},
+  {"number": "2031", "label": "Stable Until"},
+  {"number": "0", "label": "CVEs"},
+  {"number": "18MB", "label": "Binary Size"}
+]
+
+PRODUCTS products with [
+  {"name": "Obsidian Wallet", "price": 24900, "image": "/images/wallet.jpg", "category": "Accessories", "description": "Hand-stitched Italian leather. Survives 80 apocalypses."},
+  {"name": "Titanium Clip", "price": 18900, "image": "/images/clip.jpg", "category": "Accessories", "description": "Grade 5 titanium. Won't crack, won't bend."},
+  {"name": "ATAJ SDK", "price": 99900, "image": "/images/sdk.jpg", "category": "Software", "description": "8-keyword language. Includes formal verification."}
+]
+
+API_ENDPOINTS api_endpoints with [
+  {"method": "GET", "endpoint": "/api/health", "desc": "System status", "snippet": "APP HealthCheck\nSHOW HealthCheck"},
+  {"method": "GET", "endpoint": "/api/products", "desc": "Product catalog", "snippet": "APP ProductCatalog\nSHOW ProductCatalog"},
+  {"method": "POST", "endpoint": "/api/orders", "desc": "Create order", "snippet": "APP OrderProcessor\nSHOW OrderProcessing"}
+]
+
+STATE cart and []

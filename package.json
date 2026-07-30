@@ -1,0 +1,17 @@
+{
+  "name": "ataj-v3-luxury-store",
+  "version": "3.0.0",
+  "description": "ATAJ v3.0 — The 8-Keyword Language That Survives 80 Apocalypses — Luxury E-Commerce Store",
+  "main": "api/index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'ATAJ v3.0 static build complete'",
+    "start": "node api/index.js"
+  },
+  "keywords": ["ataj", "v3", "luxury", "ecommerce", "multi-cloud"],
+  "license": "MIT",
+  "dependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,21 @@
+APP HealthCheck multi-cloud aws gcp
+
+HAVE Status with code int message string uptime float version string
+
+SHOW HealthCheck and idempotent
+DO HealthCheck
+ Call redis.ping key = "health"
+ Call postgres.query "SELECT 1"
+DO Emit healthcheck.passed
+DO Emit healthcheck.audited
+
+WHEN 1m DO HealthCheck and idempotent
+DO Audit and immutable
+
+SHOW HealthEndpoint and idempotent
+DO HealthEndpoint
+ Call Status with code = 200
+ Call Status with message = "ok"
+ Call Status with uptime = process.uptime()
+ Call Status with version = "3.0.0-LTS"
+DO Emit healthcheck.response

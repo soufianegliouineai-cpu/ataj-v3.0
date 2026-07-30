@@ -1,0 +1,70 @@
+{
+  "version": "3.1.0",
+  "components": [
+    {
+      "type": "Logo",
+      "layout": "text-2xl font-bold flex items-center gap-2",
+      "slots": {
+        "text": "text-white",
+        "accent": "text-gold"
+      }
+    },
+    {
+      "type": "Nav",
+      "layout": "flex gap-6",
+      "slots": {
+        "link": "text-gray-300 hover:text-gold transition"
+      }
+    },
+    {
+      "type": "Title",
+      "layout": "text-5xl font-bold text-center",
+      "slots": {
+        "text": "text-white"
+      }
+    },
+    {
+      "type": "Subtitle",
+      "layout": "text-xl text-center text-gray-400 mt-4",
+      "slots": {
+        "text": "text-gray-300"
+      }
+    },
+    {
+      "type": "Stat",
+      "layout": "flex flex-col items-center p-6 bg-white rounded-xl shadow",
+      "slots": {
+        "number": "text-4xl font-bold text-black",
+        "label": "text-sm text-gray-500 mt-2"
+      }
+    },
+    {
+      "type": "Product",
+      "layout": "bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition",
+      "slots": {
+        "image": "w-full h-48 object-cover",
+        "category": "text-xs text-gray-400 px-4 pt-4",
+        "title": "text-lg font-semibold px-4",
+        "desc": "text-sm text-gray-600 px-4",
+        "price": "text-2xl font-bold text-black px-4 pb-4"
+      }
+    },
+    {
+      "type": "ApiEndpoint",
+      "layout": "bg-gray-900 text-green-400 p-4 rounded-lg font-mono",
+      "slots": {
+        "method": "inline-block px-2 py-1 rounded bg-green-500 text-black text-xs",
+        "endpoint": "text-lg",
+        "desc": "text-sm text-gray-300",
+        "code": "bg-black p-2 rounded mt-2 text-xs"
+      }
+    },
+    {
+      "type": "Footer",
+      "layout": "text-center py-6 bg-gray-800 text-gray-400",
+      "slots": {
+        "text": "text-gray-300"
+      }
+    }
+  ]
+}
