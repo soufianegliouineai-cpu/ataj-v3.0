@@ -1,0 +1,15 @@
+config:
+  target: 'http://localhost:8080'
+scenarios:
+  - name: "10M TPS"
+    flow:
+      - post:
+          url: "/buy"
+          json:
+            product_id: "123"
+            idempotency_key: "{{ $uuid }}"
+    phases:
+      - duration: 60
+        arrivalRate: 10000000
+
+Run: `k6 run load-test.yml`

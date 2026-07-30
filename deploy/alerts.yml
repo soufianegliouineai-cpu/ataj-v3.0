@@ -1,0 +1,12 @@
+groups:
+- name: ataj-sla
+ rules:
+ - alert: CostCapWarning
+ expr: cost_usd > 900
+ annotations: { action: "page CTO" }
+ - alert: RTOSLABreach
+ expr: failover_seconds > 900
+ annotations: { action: "page + $10k credit" }
+ - alert: CVEDetected
+ expr: cve_count > 0
+ annotations: { action: "patch 24h or $5k credit" }

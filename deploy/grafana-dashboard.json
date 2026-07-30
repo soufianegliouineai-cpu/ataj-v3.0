@@ -1,0 +1,11 @@
+{
+ "dashboard": {
+ "title": "ATAJ v3.0 Nuclear",
+ "panels": [
+ {"title": "Cost Today USD", "targets": [{"expr": "sum(cost_usd)"}], "alert": ">900"},
+ {"title": "RTO Seconds", "targets": [{"expr": "failover_seconds"}], "threshold": 15},
+ {"title": "Circuit State", "targets": [{"expr": "circuit_breaker_state"}]},
+ {"title": "Audit Events/sec", "targets": [{"expr": "rate(audit_events)"}]}
+ ]
+ }
+}

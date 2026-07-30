@@ -1,0 +1,24 @@
+APP Shopify multi-cloud aws gcp
+
+USE stripe PIN 1.2.3
+USE s3
+USE email
+
+HAVE Product with name string price decimal secure image string
+HAVE Order with id uuid user_id uuid total decimal status enum
+
+SHOW Store
+SHOW Admin
+
+DO Buy and idempotent circuit
+ Call stripe.charge amount = Order.total idempotency_key = Order.id
+ Call s3.put key = Product.image
+
+ON order.paid
+DO Email and Call email.send template = "receipt"
+
+WHEN 1st of month DO Billing and bulk
+ FOR each Tenant DO Charge
+
+DO Backup and immutable
+DO GDPR delete user and audit

@@ -1,0 +1,25 @@
+{
+  "alerts": [
+    {
+      "name": "RTO_SLA_BREACH",
+      "metric": "rto_seconds",
+      "threshold": 900,
+      "action": "$10k credit",
+      "severity": "critical"
+    },
+    {
+      "name": "COST_CAP_EXCEEDED",
+      "metric": "cost_usd_today",
+      "threshold": 1000,
+      "action": "kill process",
+      "severity": "critical"
+    },
+    {
+      "name": "DOUBLE_CHARGE_DETECTED",
+      "metric": "double_charge_count",
+      "threshold": 0,
+      "action": "$100k payout",
+      "severity": "critical"
+    }
+  ]
+}

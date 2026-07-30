@@ -1,0 +1,21 @@
+#!/bin/bash
+# ATAJ Admin CLI for SREs
+
+case $1 in
+  status)
+    curl -s http://localhost:9090/health
+    ;;
+  failover)
+    echo "Triggering manual failover to GCP..."
+    ./atajc deploy --force-failover gcp
+    ;;
+  cost)
+    curl -s http://localhost:9090/metrics | grep cost_usd
+    ;;
+  audit)
+    aws s3 ls s3://ataj-audit/worm/ --recursive | tail -10
+    ;;
+  *)
+    echo "Usage: ataj-admin [status|failover|cost|audit]"
+    ;;
+esac

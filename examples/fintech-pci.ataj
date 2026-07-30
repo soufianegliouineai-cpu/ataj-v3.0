@@ -1,0 +1,13 @@
+APP FintechPCI multi-cloud aws
+
+USE pci_vault PIN 4.0.0
+
+HAVE Card with id uuid pan secure cvv secure
+HAVE Transaction with id uuid amount decimal
+
+DO Charge and idempotent circuit approval from Fraud
+ Call pci_vault.tokenize Card.pan
+ Call processor.charge amount
+ DO Audit and immutable
+
+WHEN hourly DO PCI_Scan and bulk

@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ATAJ v3.0 Multi-Cloud Stack
+
+Resources:
+  AtajCluster:
+    Type: AWS::ECS::Service
+    Properties:
+      DesiredCount: 3
+      HealthCheckGracePeriodSeconds: 8
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+
+  AtajDB:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: cockroachdb
+      BackupRetentionPeriod: 35
+      DeletionProtection: true
+
+  AtajCostAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      MetricName: CostUSD
+      Threshold: 1000
+      AlarmActions: [arn:aws:sns:ctopager]
+
+Outputs:
+  FailoverTime:
+    Value: 8s

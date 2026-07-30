@@ -1,0 +1,13 @@
+APP HealthCare multi-cloud gcp
+
+USE hl7 PIN 2.5.1
+
+HAVE Patient with id uuid ssn secure name string
+HAVE Record with patient_id uuid data secure
+
+DO Access_Record and approval from Doctor circuit audit
+ Call hl7.get patient_id
+ DO Log access
+
+DO Backup and immutable
+DO GDPR delete patient

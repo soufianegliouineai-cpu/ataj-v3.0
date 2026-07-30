@@ -1,0 +1,32 @@
+[package]
+name = "atajc"
+version = "3.0.0"
+edition = "2021"
+description = "ATAJ v3.0 LTS Compiler — 8 keywords, multi-cloud, $100k warranty"
+license = "PROPRIETARY"
+
+[[bin]]
+name = "atajc"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.38", features = ["full"] }
+quote = "1.0"
+proc-macro2 = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rust_decimal = "1.34"
+crc32fast = "1.4"
+aws-sdk-s3 = "1.24"
+gcp-sdk-storage = "0.8"
+nacos = "0.3"
+sha2 = "0.10"
+prometheus = "0.13"
+lazy_static = "1.4"
+chrono = "0.4"
+reqwest = "0.11"
+
+[profile.release]
+lto = "fat"
+opt-level = "z"
+codegen-units = 1

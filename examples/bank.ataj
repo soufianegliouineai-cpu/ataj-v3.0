@@ -1,0 +1,10 @@
+APP Bank multi-cloud aws gcp
+
+USE swift PIN 3.0.1
+
+HAVE Account with id uuid balance decimal secure
+HAVE Wire with from uuid to uuid amount decimal
+
+DO Wire and approval from 2 CFO circuit idempotent
+ Call swift.send from to amount
+ DO Audit and immutable

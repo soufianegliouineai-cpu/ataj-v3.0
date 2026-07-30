@@ -1,0 +1,11 @@
+ataj:
+  version: 3.0
+  providers: [aws, gcp]
+  regions: [us-east-1, europe-west1]
+db: cockroachdb
+backup: [s3, gcs]
+cost_cap: $1000/day
+failover_time: 8s
+rpo: 5min
+rto: 15min
+audit: s3-worm

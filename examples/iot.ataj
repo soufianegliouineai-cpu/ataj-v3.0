@@ -1,0 +1,13 @@
+APP IoT multi-cloud gcp
+
+USE mqtt PIN 5.0.0
+USE timescaledb
+
+HAVE Device with id uuid temp decimal secure
+HAVE Telemetry
+
+ON device.telemetry
+DO Ingest and bulk circuit
+ IF Device.temp > 100
+ DO Alert and approval from Ops
+

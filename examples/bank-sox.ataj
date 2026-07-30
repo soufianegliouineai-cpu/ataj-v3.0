@@ -1,0 +1,18 @@
+APP BankSOX multi-cloud aws gcp
+
+USE swift PIN 3.0.1
+USE kyc PIN 2.0.0
+
+HAVE Account with id uuid balance decimal secure owner string
+HAVE Wire with id uuid from uuid to uuid amount decimal status enum
+
+DO Wire and approval from 2 CFO circuit idempotent audit
+ IF amount > 10000
+ REQUIRE approval from CFO, CRO
+ Call swift.send from to amount
+ DO Log and immutable
+
+WHEN daily DO SOX_Report and bulk
+ FOR each Wire DO Export to S3 WORM
+
+DO GDPR delete user and audit
