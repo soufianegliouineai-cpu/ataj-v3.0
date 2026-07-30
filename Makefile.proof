@@ -1,0 +1,6 @@
+proof:
+	tlc proofs/idempotency.tla
+	cargo +nightly kani
+	cargo prusti
+	bash ops/audit/external-auditor.sh
+	@echo "IF ALL GREEN: TAG v3.0.\$(shell date +%Y%m%d) AS PROVEN"
