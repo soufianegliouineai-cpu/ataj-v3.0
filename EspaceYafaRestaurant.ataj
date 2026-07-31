@@ -1,48 +1,66 @@
 APP EspaceYafaRestaurant frontend react backend cloud
 
-HAVE Restaurant id name string address string phone string email string description text opening_hours string average_rating decimal total_reviews int
-HAVE MenuItem id name string name_ar string description text description_ar text price decimal category string image_url string available bool featured bool spiciness int dietary_tags string[] calories int preparation_time int
-HAVE Customer id email string name string phone string loyalty_points int reservations_count int last_visit timestamp
-HAVE Order id customer_id uuid restaurant_id uuid items json subtotal decimal tax decimal total decimal status string customer_name string customer_phone string delivery_address string order_date timestamp
-HAVE Reservation id customer_name string customer_phone string email string party_size int date date time time special_requests text status string table_number int
-HAVE Review id restaurant_id uuid customer_id uuid rating int title string comment text created timestamp approved bool
-HAVE Category id name string name_ar string icon string display_order int
+HAVE Restaurant id name address phone email description opening_hours average_rating total_reviews
+HAVE MenuItem id name name_ar description_ar price category image_url available featured spiciness dietary_tags calories preparation_time
+HAVE Customer id email name phone loyalty_points reservations_count last_visit
+HAVE Order id customer_id restaurant_id items subtotal tax total status customer_name customer_phone delivery_address order_date
+HAVE Reservation id customer_name customer_phone email party_size date time special_requests status table_number
+HAVE Review id restaurant_id customer_id rating title comment created approved
+HAVE Category id name name_ar icon display_order
 
-SHOW Nav "Espace Yafa" "Home Menu Reservations Order Reviews Admin Contact" color black background white
+SHOW Nav "Espace Yafa Restaurant" "Home Menu Reservations Order Reviews Contact" "black"
 
-SHOW Hero title "Authentic Moroccan Cuisine" subtitle "Espace Yafa Restaurant Casablanca" style hero
-SHOW Button text "View Menu" style primary ON Click DO ShowMenu
+SHOW Hero "Authentic Moroccan Cuisine" "Casablanca Since 2020" "hero"
+SHOW Button "View Menu" "primary" ON Click DO ShowMenu
+SHOW Button "Book Table" "ghost" ON Click DO ShowReservations
 
-SHOW Grid columns 4 gap 6 mobile_columns 1
-SHOW Stat label average_rating text "Rating" color gold
-SHOW Stat label total_reviews text "Reviews" color secondary
-SHOW Card title "Opening Hours" content opening_hours style card
+SHOW Grid 3 6 "mobile:1"
+SHOW Stat average_rating "Average Rating" "gold"
+SHOW Stat total_reviews "Total Reviews" "secondary"
+SHOW Card "Opening Hours" opening_hours "card"
 
-SHOW Grid columns 1 gap 6 mobile_columns 1
-FOR EACH item IN MenuItem WHEN item.available EQ true SHOW Card title item.name content item.description price item.price style card ON Click DO AddToOrder item.id
+SHOW Grid 1 3 "mobile:1"
+FOR EACH item IN MenuItem WHEN item.available EQ true SHOW Card item.name item.price "card" ON Click DO AddToOrder item.id
 
-SHOW Input label "Name" placeholder "Your name" type text
-SHOW Input label "Phone" placeholder "Your phone" type tel
-SHOW Input label "Party Size" placeholder "Number of guests" type number
-SHOW Button text "Book Table" style primary ON Click DO CreateReservation
+SHOW Form "Reservation" "Name" "Phone" "Party Size" "Date" "Time" "Confirm Reservation" "primary" ON Submit DO CreateReservation
 
-SHOW Input label "Your Order" placeholder "Select items" type text
-SHOW Button text "Place Order" style primary ON Click DO CreateOrder
+SHOW Form "Order" "Delivery Address" "Place Order" "primary" ON Submit DO CreateOrder
 
-SHOW Input label "Rating" placeholder "1-5" type number
-SHOW Input label "Comment" placeholder "Your review" type text
-SHOW Button text "Submit Review" style primary ON Click DO SubmitReview
+SHOW Form "Review" "Rating 1-5" "Title" "Comment" "Submit Review" "primary" ON Submit DO SubmitReview
 
-SHOW Footer text "Espace Yafa 2026" align center color gray background dark
+SHOW Footer "Espace Yafa Restaurant 2026 Casablanca" "center gray"
 
-DO GetRestaurantInfo DO DB.Query "SELECT * FROM restaurant WHERE id = 'espace-yafa-casa'" DO Cache.Set "restaurant:cache" 3600 DO Emit restaurant.info_loaded
+DO GetRestaurantInfo
+ DO DB.Query "SELECT * FROM restaurant WHERE id = 'espace-yafa-casa'"
+ DO Cache.Set "restaurant:cache" 3600
+ DO Emit restaurant.info_loaded
 
-DO GetMenuItems DO DB.Query "SELECT * FROM menu_items WHERE available = true" DO Cache.Set "menu:cache" 1800 DO Emit menu.items_loaded
+DO GetMenuItems
+ DO DB.Query "SELECT * FROM menu_items WHERE available = true ORDER BY featured DESC"
+ DO Cache.Set "menu:cache" 1800
+ DO Emit menu.items_loaded
 
-DO CreateReservation DO DB.Insert "reservations" Reservation DO Email.Send Reservation.email "reservation_confirmation" DO Audit.Log "RESERVATION_CREATED" DO Emit reservation.created
+DO CreateReservation
+ DO DB.Insert "reservations" Reservation
+ DO Email.Send Reservation.email "reservation_confirmation"
+ DO Audit.Log "RESERVATION_CREATED" Reservation.id
+ DO Emit reservation.created
 
-DO CreateOrder DO DB.Insert "orders" Order DO Emit order.created
+DO CreateOrder
+ DO DB.Insert "orders" Order
+ DO Audit.Log "ORDER_CREATED" Order.id
+ DO Emit order.created
 
-DO SubmitReview DO DB.Insert "reviews" Review DO Emit review.submitted
+DO SubmitReview
+ DO DB.Insert "reviews" Review
+ DO Audit.Log "REVIEW_SUBMITTED" Review.id
+ DO Emit review.submitted
 
-WHEN 00:00 DO UpdateAnalytics DO DB.Query "UPDATE restaurant SET average_rating = AVG" DO Emit analytics.updated
+DO AddToOrder
+ DO Cart.Add item.id
+ DO Emit cart.updated
+
+WHEN 00:00 DO UpdateAnalytics
+ DO DB.Query "UPDATE restaurant SET average_rating = (SELECT AVG(rating) FROM reviews WHERE approved = true)"
+ DO DB.Query "UPDATE restaurant SET total_reviews = (SELECT COUNT(*) FROM reviews WHERE approved = true)"
+ DO Emit analytics.updated
