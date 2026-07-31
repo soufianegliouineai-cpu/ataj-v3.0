@@ -20,15 +20,81 @@ That is all. 8 keywords. Frozen since v3.1.1. No more, no less.
 # → https://perfumeshop.vercel.app
 ```
 
-### How It Works
-ATAJ is a compiler, not a framework. One `.ataj` file compiles to both frontend and backend:
+## Architecture
 
-- `DO` statements → serverless API endpoints
-- `SHOW` statements → React UI components
-- `HAVE` statements → database tables
-- `WHEN` statements → scheduled tasks
+ATAJ is a compiler, not a framework. One `.ataj` file compiles to both frontend and backend.
 
-No `API` keyword. No `PAGE` keyword. No `CALL` keyword. No framework. Just the language.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     DEVELOPER                                   │
+│                                                                 │
+│  Write ONE .ataj file                                         │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  EspaceYafaRestaurant.ataj  (39 lines)                 │   │
+│  │  APP → HAVE → SHOW → DO → WHEN → ON                   │   │
+│  │  8 keywords. Zero framework. Zero bloat.               │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  Run: ./deploy.sh production                                   │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    ATAJ COMPILER                                │
+│                                                                 │
+│  atajc EspaceYafaRestaurant.ataj --target vercel               │
+│                                                                 │
+│  SHOW → React components    DO → Serverless API endpoints     │
+│  HAVE → DB table schemas    WHEN → Cloud cron jobs            │
+│  ON → Event handlers        USE → Service integrations        │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    VERCEL DEPLOYMENT                            │
+│                                                                 │
+│  Frontend → CDN (global edge)                                  │
+│  APIs     → Serverless functions (AWS Lambda)                  │
+│  Database → Managed PostgreSQL                                  │
+│  Cache    → Redis (Vercel KV)                                  │
+│  Email    → SendGrid                                          │
+│                                                                 │
+│  Result: https://atajv3.vercel.app                            │
+└─────────────────────────────────────────────────────────────────┘
+
+### Compilation Flow
+
+ATAJ Source	        Compiles To	        Runtime
+`HAVE Restaurant id`	`CREATE TABLE`	        Postgres
+`SHOW Card name`	`<Card title={name}/>`	React
+`DO GetMenuItems`	`export async GET()`	/api/GetMenuItems
+`ON Click DO Order`	`onClick={fetch()}`	Browser Event
+`WHEN 00:00 DO`	`cron: "0 0 * * *"`	Vercel Cron
+`DO Cache.Set`	`redis.setex()`	        Upstash Redis
+`DO Email.Send`	`SendGrid trigger`	        Email Service
+`DO Audit.Log`	`Audit entry`	        Audit Log
+
+### Stack Comparison
+
+Traditional Stack	ATAJ v3.1.1	Reduction
+React + Express + Prisma + TS + SQL + Docker + CI/CD	`EspaceYafaRestaurant.ataj`	7 tools → 1 file
+10+ frameworks, 50+ config files	8 keywords	50 configs → 0 configs
+Split across 50+ files	Single source of truth	50 files → 1 file
+`npm run build && docker push && kubectl apply`	`./deploy.sh production`	10 steps → 1 step
+Framework lock-in: Next.js v15	Language lock-in: None. Frozen	Can recompile to anything
+
+Binary size: 18.7MB vs 200MB+ node_modules. Pass.
+
+### Key Insight
+
+The compiler is the framework. The language IS the architecture.
+
+Because the compiler is the framework, we can freeze it.
+
+Traditional: "Upgrade React 18 to 19" = 3 weeks of breaking changes
+ATAJ: "Compiler v3.1.1 is frozen until 2031" = 0 breaking changes
+
+The architecture cannot drift because there are only 8 keywords to implement.
 
 ---
 
