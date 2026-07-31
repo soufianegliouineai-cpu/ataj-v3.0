@@ -1,0 +1,43 @@
+APP HealthcareDashboard frontend react backend cloud
+
+HAVE Patient id name email phone dob insurance_id primary_doctor
+HAVE Appointment id patient_id doctor_id date time status type notes
+HAVE Doctor id name specialty license_number patients_count rating
+HAVE Prescription id patient_id doctor_id medication dosage frequency start_date end_date
+HAVE LabResult id patient_id test_name result value unit date
+HAVE Bill id patient_id appointment_id amount insurance_covered total status
+HAVE Notification id user_id type title body read created
+
+SHOW Nav "HealthPortal" "Dashboard Appointments Records Billing Messages" "white"
+
+SHOW Hero "Healthcare Dashboard" "Manage your health, one click at a time" "hero"
+
+SHOW Grid 3 6 "mobile:1"
+SHOW Stat patients_count "Patients" "gold"
+SHOW Stat appointments "Appointments" "secondary"
+SHOW Stat "99.9%" "Uptime" "card"
+
+SHOW Grid 1 2 "mobile:1"
+FOR EACH appointment IN Appointment WHEN appointment.status EQ "upcoming" SHOW Card appointment.date appointment.type "card" ON Click DO ViewAppointment appointment.id
+
+SHOW Form "New Appointment" "Patient" "Doctor" "Date" "Time" "Type" "Book Appointment" "primary" ON Submit DO CreateAppointment
+
+SHOW Form "Lab Result" "Test Name" "Result" "Value" "Unit" "Submit Result" "primary" ON Submit DO SubmitLabResult
+
+SHOW Footer "HealthPortal 2026 HIPAA Compliant" "center white"
+
+DO GetDashboard DO DB.Query "SELECT * FROM dashboard WHERE user_id = User.id" DO Cache.Set "dashboard:cache" 300 DO Emit dashboard.loaded
+
+DO GetAppointments DO DB.Query "SELECT * FROM Appointment WHERE patient_id = Patient.id ORDER BY date" DO Emit appointments.loaded
+
+DO GetLabResults DO DB.Query "SELECT * FROM LabResult WHERE patient_id = Patient.id ORDER BY date DESC" DO Emit lab_results.loaded
+
+DO CreateAppointment DO DB.Insert "appointments" Appointment DO Audit.Log "APPOINTMENT_CREATED" Appointment.id DO Emit appointment.created
+
+DO SubmitLabResult DO DB.Insert "lab_results" LabResult DO Audit.Log "LAB_RESULT_SUBMITTED" LabResult.id DO Emit lab_result.submitted
+
+DO ViewAppointment DO DB.Query "SELECT * FROM Appointment WHERE id = Appointment.id" DO Emit appointment.viewed
+
+WHEN 00:00 DO DailyReport DO DB.Query "SELECT * FROM appointments WHERE date = TODAY()" DO Emit report.daily
+
+WHEN hourly DO CheckAlerts DO DB.Query "SELECT * FROM LabResult WHERE value > threshold" DO Emit alerts.triggered

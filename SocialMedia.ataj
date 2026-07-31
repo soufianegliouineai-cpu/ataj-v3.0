@@ -1,0 +1,47 @@
+APP SocialMedia frontend react backend cloud
+
+HAVE User id name email avatar bio followers_count posts_count role
+HAVE Post id user_id content image_url likes_count comments_count created
+HAVE Comment id post_id user_id content created approved
+HAVE Message id sender_id receiver_id content read created
+HAVE Notification id user_id type title body read created
+HAVE Hashtag id name posts_count
+HAVE Reaction id user_id post_id type created
+
+SHOW Nav "Social" "Home Explore Messages Notifications Profile" "black"
+
+SHOW Hero "Social Platform" "Connect. Share. Discover." "hero"
+SHOW Button "Sign Up" "primary" ON Click DO ShowSignUp
+SHOW Button "Login" "ghost" ON Click DO ShowLogin
+
+SHOW Grid 3 6 "mobile:1"
+SHOW Stat followers_count "Followers" "gold"
+SHOW Stat posts_count "Posts" "secondary"
+SHOW Stat "100+" "Active Users" "card"
+
+SHOW Grid 1 2 "mobile:1"
+FOR EACH post IN Post SHOW Card post.content "post" ON Click DO ViewPost post.id
+
+SHOW Input "Search" "input"
+SHOW Button "Search" "primary" ON Click DO SearchPosts
+
+SHOW Input "Post content" "input"
+SHOW Button "Post" "primary" ON Click DO CreatePost
+
+SHOW Footer "SocialMedia 2026" "center gray"
+
+DO GetFeed DO DB.Query "SELECT * FROM Post ORDER BY created DESC LIMIT 20" DO Cache.Set "feed:cache" 300 DO Emit feed.loaded
+
+DO GetUser DO DB.Query "SELECT * FROM User WHERE id = User.id" DO Cache.Set "user:cache" 600 DO Emit user.loaded
+
+DO CreatePost DO DB.Insert "posts" Post DO Audit.Log "POST_CREATED" Post.id DO Emit post.created
+
+DO CreateComment DO DB.Insert "comments" Comment DO Audit.Log "COMMENT_CREATED" Comment.id DO Emit comment.created
+
+DO CreateReaction DO DB.Insert "reactions" Reaction DO Audit.Log "REACTION_CREATED" Reaction.id DO Emit reaction.created
+
+DO SearchPosts DO DB.Query "SELECT * FROM Post WHERE content LIKE %search% OR hashtag LIKE %search%" DO Emit search.results
+
+WHEN 00:00 DO CleanupOldPosts DO DB.Query "DELETE FROM Post WHERE created_at < NOW() - 90 days" DO Emit cleanup.done
+
+WHEN hourly DO CheckNotifications DO DB.Query "SELECT * FROM Notification WHERE read = false" DO Emit notifications.unread
