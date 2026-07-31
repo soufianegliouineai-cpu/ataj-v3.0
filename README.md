@@ -1,103 +1,121 @@
-# ATAJ v3.0 LTS
+# ATAJ v3.1.1 — IRON CLAD
 ## The 8-Keyword Language That Survives 80 Apocalypses
 
-Ship multi-cloud SaaS in 20 lines. 18MB static binary. $100k warranty.
+Ship complete applications in 39 lines. 8 keywords frozen forever. Zero framework. Zero bloat.
 
-### Install
+### The Language
+```
+APP, HAVE, SHOW, DO, WHEN, ON, USE, AGENT
+```
+That is all. 8 keywords. Frozen since v3.1.1. No more, no less.
+
+### Quick Start
 ```bash
-cd compiler &&./build.sh
-./target/release/atajc --version
+# Deploy the restaurant app
+./deploy.sh production
+# → https://atajv3.vercel.app
+
+# Deploy the perfume shop
+./deploy.sh production
+# → https://perfumeshop.vercel.app
 ```
 
-### Run
-```bash
-./target/release/atajc run examples/shopify.ataj
-./target/release/atajc deploy --multi-cloud aws,gcp
-./target/release/atajc test --tier all
-```
+### How It Works
+ATAJ is a compiler, not a framework. One `.ataj` file compiles to both frontend and backend:
 
-The 9 Keywords
-`APP, AGENT, HAVE, SHOW, DO, WHEN, ON, USE, multi-cloud`
+- `DO` statements → serverless API endpoints
+- `SHOW` statements → React UI components
+- `HAVE` statements → database tables
+- `WHEN` statements → scheduled tasks
 
-Guarantees
-RPO 5min | RTO 15min | Cost Cap $1000/day | 0 CVEs | 80/80 Tests
+No `API` keyword. No `PAGE` keyword. No `CALL` keyword. No framework. Just the language.
 
 ---
 
-## Status: LTS FROZEN (2026-2031)
+## Production Apps
 
-v3.0.0 LTS is frozen. Stability only. No new features. No breaking changes.
+| App | File | Lines | Keywords | Status |
+|-----|------|-------|----------|--------|
+| Espace Yafa Restaurant | `EspaceYafaRestaurant.ataj` | 39 | 8/8 | ✅ FROZEN |
+| Maison de Parfum | `PerfumeShop.ataj` | 39 | 8/8 | ✅ FROZEN |
 
-**Stability Guarantee**: $100,000 per violation of frozen terms.
+Both apps:
+- 8 keywords only
+- Zero type annotations in HAVE
+- Single-line FOR EACH
+- Under 15 components
+- Under 15 tokens
+- Zero violations
 
 ---
 
-## Quick Reference
+## Keywords
 
-| Keyword | What | Example |
-|---|---|---|
-| `APP` | App definition + targets | `APP MyApp multi-cloud aws gcp` |
-| `USE` | Import library (PIN pinned) | `USE stripe PIN 1.2.3` |
-| `HAVE` | Data model + schema | `HAVE User with email string` |
-| `SHOW` | UI / Dashboard | `SHOW UserDashboard` |
-| `DO` | Business logic (core) | `DO Buy and idempotent circuit` |
-| `WHEN` | Cron scheduler | `WHEN 1st of month DO Bill` |
-| `ON` | Webhook / event | `ON /stripe DO Receive` |
-| `multi-cloud` | Deployment target | `multi-cloud aws gcp` |
+| Keyword | Purpose | Example |
+|---------|---------|---------|
+| `APP` | Application definition | `APP MyApp frontend react backend cloud` |
+| `HAVE` | Data model (implicit types) | `HAVE User id name email` |
+| `SHOW` | UI component | `SHOW Hero "Title" "Subtitle" "hero"` |
+| `DO` | Business logic + API endpoint | `DO GetItems DO DB.Query "..."` |
+| `WHEN` | Scheduled task | `WHEN 00:00 DO UpdateAnalytics` |
+| `ON` | Event handler | `ON Click DO HandleClick` |
+| `USE` | External service (PIN pinned) | `USE stripe PIN 1.2.3` |
+| `AGENT` | AI/ML worker | `AGENT FraudDetector with GOAL "..."` |
 
-## Modifiers
-`idempotent` `circuit` `bulk` `approval` `secure` `self-heal` `immutable` `PIN` `UNSAFE`
+---
 
-## Quick Start
+## Governance
+
+ATAJ v3.1.1 is governed by `ataj.deny.json`:
+
+- **8 keywords** — enforced by CI
+- **No type annotations** — `HAVE` uses implicit types
+- **No illegal keywords** — `API`, `PAGE`, `ROUTE`, `CALL`, `ENUM` blocked
+- **No framework directives** — `START_SERVER`, `CORS`, `SECURITY`, `WEBSOCKET` blocked
+- **15 components max** — enforced by CI
+- **15 tokens max** — enforced by CI
+- **25MB binary cap** — enforced by CI
+
+CI Guard: `.github/workflows/ataj-guard.yml` — rejects commits with violations.
+
+---
+
+## Deploy
+
 ```bash
-docker pull ataj/ataj:3.0
-./atajc run examples/shopify.ataj
-./atajc deploy --multi-cloud aws,gcp
+# One command
+./deploy.sh production
+
+# Or preview
+./deploy.sh preview
+
+# Or dev
+./deploy.sh dev
 ```
 
-## Full docs
-- [SPEC.md](./SPEC.md) — Complete grammar + syntax reference
-- [QUICK-REFERENCE.md](./QUICK-REFERENCE.md) — One-page keyword cheat sheet
-- [GETTING-STARTED-60s.md](./GETTING-STARTED-60s.md) — Get started in 60 seconds
-- [ERROR-HANDLING.md](./ERROR-HANDLING.md) — All errors + fixes
-- [WARRANTY.md](./WARRANTY.md) — $100k warranty details
-- [INSTALL.md](./INSTALL.md) — Install instructions
+---
 
-## Simple Design
-ATAJ has exactly 8 keywords, 9 modifiers, 7 data types.
-No extras. No features you don't need. Nothing that can break in prod.
+## Docs
 
-**9 Keywords. 0 CVEs. Ship with confidence.**
+| File | Purpose |
+|------|---------|
+| `ATAJ-SPECIFICATION-3.1.1.md` | Complete language specification |
+| `AGENTS.md` | Agent system prompt (prevents over-engineering) |
+| `ataj.deny.json` | Governance rules (CI enforcement) |
+| `deploy.sh` | One-command deployment |
+| `stress-test.sh` | Load testing |
 
 ---
 
-## Additional Complex Examples
+## Status
 
-| App | Lines | Keywords | Purpose |
-|---|---|---|---|
-| `examples/fullstack-todo.ataj` | 62 | 8 | Full-stack task manager |
-| `examples/platforms/multi-tenant-saas.ataj` | 140+ | 8 | Enterprise SaaS platform |
-| `examples/platforms/ecommerce-platform.ataj` | 130+ | 8 | Full e-commerce platform |
-| `examples/frontend/luxury-dashboard.ataj` | 50+ | 8+UI | Luxury dashboard UI |
-| `examples/frontend/social-feed.ataj` | 60+ | 8+UI | Social media feed UI |
-| `examples/frontend/ecommerce-store.ataj` | 50+ | 8+UI | E-commerce store UI |
-| `examples/frontend/admin-panel.ataj` | 70+ | 8+UI | Admin panel UI |
-| `examples/frontend/healthcare-dashboard.ataj` | 60+ | 8+UI | Healthcare dashboard |
-| `examples/frontend/realtime-collab.ataj` | 40+ | 8+UI | Real-time collaboration |
-| `examples/fraud-detection-agent.ataj` | 40+ | 9 | AI fraud detection agent |
+**ATAJ v3.1.1 IRON CLAD**
 
-## Complete Stats
+- 8 keywords frozen since 2026-07-31
+- Expires 2031-07-31 (then re-ratify)
+- 2 production apps deployed
+- Zero violations
+- Zero framework dependencies
+- Zero bloat
 
-| Metric | Value |
-|---|---|
-| **Total Stress Tests** | 200/200 PASSED |
-| **Total Examples** | 11 files |
-| **Total Platform Backends** | Complex (SaaS + E-commerce) |
-| **Total UI Examples** | 6 fancy designs |
-| **Total AI Agents** | 1 (FraudDetector) |
-| **Keywords** | 8 backend + 1 AI agent + 8 UI (9+1+8=18 across namespaces) |
-| **Modifiers** | 9 |
-| **Data Types** | 7 |
-| **Documentation** | 20+ guide files |
-| **Compiler Modules** | 24+ Rust source files |
-| **Warranty** | $100,000 |
+**8 keywords. One file. Forever frozen.**
