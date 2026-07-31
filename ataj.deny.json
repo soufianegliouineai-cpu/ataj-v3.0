@@ -1,0 +1,59 @@
+{
+ "version": "3.1.1",
+ "name": "ATAJ Iron Clad Governance",
+ "freeze_date": "2026-07-31",
+ "expires": "2031-07-31",
+
+ "rules": {
+ "keywords": {
+ "allowed": ["APP", "HAVE", "SHOW", "DO", "WHEN", "ON", "USE", "AGENT"],
+ "forbidden": ["API", "PAGE", "ROUTE", "CALL", "ENUM", "TYPE", "INTERFACE", "IMPORT", "EXPORT", "CLASS", "FUNCTION"],
+ "max_count": 8
+ },
+
+ "have_rules": {
+ "forbidden_types": ["string", "int", "bool", "uuid", "decimal", "timestamp", "json", "text", "date", "time", "[]"],
+ "note": "Types are implicit. HAVE Entity field1 field2"
+ },
+
+ "syntax_rules": {
+ "forbidden_patterns": [
+ "DO\\.",
+ "FOR\\s+each",
+ "END\\s+DO",
+ "\\$\\{",
+ "=>",
+ "type="
+ ],
+ "for_each": "must_be_single_line"
+ },
+
+ "limits": {
+ "max_components": 15,
+ "max_tokens": 15,
+ "max_binary_mb": 25,
+ "max_lines_per_file": 200
+ },
+
+ "forbidden_directives": [
+ "START_SERVER",
+ "CORS",
+ "SECURITY",
+ "WEBSOCKET",
+ "circuit",
+ "idempotent",
+ "approval"
+ ]
+ },
+
+ "ci_check": {
+ "pre_commit": [
+ "ataj audit",
+ "grep -ri 'API\\|PAGE\\|CALL\\|ENUM' --include='*.ataj' && exit 1",
+ "grep -ri 'string\\|int\\|bool' --include='*.ataj' -A1 'HAVE' && exit 1"
+ ],
+ "on_failure": "REJECT_COMMIT: ATAJ v3.1.1 violation. See GOVERNANCE.md"
+ },
+
+ "message_on_violation": "ATAJ v3.1.1 is frozen. Use only 8 keywords: APP HAVE SHOW DO WHEN ON USE AGENT. No types in HAVE. No new syntax."
+}

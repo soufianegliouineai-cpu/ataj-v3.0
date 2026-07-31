@@ -1,0 +1,15 @@
+name: ATAJ Iron Clad Guard
+on: [push, pull_request]
+jobs:
+ audit:
+ runs-on: ubuntu-latest
+ steps:
+ - uses: actions/checkout@v4
+ - name: Install ATAJ
+ run: curl -sSL https://ataj.dev/install | sh
+ - name: Audit All .ataj files
+ run: ataj audit --deny ataj.deny.json --strict
+ - name: Grep for illegal keywords
+ run: |
+ ! grep -ri "API\|PAGE\|ROUTE\|CALL\|ENUM" --include="*.ataj"
+ ! grep -ri "string\|int\|bool" --include="*.ataj" -A1 "HAVE"
