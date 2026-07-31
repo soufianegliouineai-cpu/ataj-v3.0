@@ -1,0 +1,24 @@
+APP ATAJWebsite frontend react
+
+SHOW Hero "ATAJ v3.1.1" "The 8 Keyword Programming Language" "hero"
+SHOW Subtitle "Ship complete apps in 39 lines. Zero framework. Forever frozen." "subtitle"
+SHOW Button "View Docs" "primary" ON Click DO OpenDocs
+SHOW Button "View Examples" "ghost" ON Click DO OpenExamples
+SHOW Button "Download Compiler" "secondary" ON Click DO DownloadCompiler
+
+SHOW Grid 3 6 "mobile:1"
+SHOW Card "8 Keywords" "APP HAVE SHOW DO WHEN ON USE AGENT" "feature"
+SHOW Card "1 File" "No frameworks, no config, no bloat" "feature"
+SHOW Card "2 Targets" "Compiles to Web + Backend from one source" "feature"
+
+SHOW Grid 2 4 "mobile:1"
+SHOW Stat "39" "Lines per app" "gold"
+SHOW Stat "8/8" "Keywords" "secondary"
+SHOW Stat "0" "Violations" "card"
+SHOW Stat "2031" "Frozen until" "card"
+
+SHOW Footer "ATAJ v3.1.1 Iron Clad — 8 Keywords. Forever Frozen." "center gray"
+
+DO OpenDocs DO Navigate "https://docs.ataj.dev"
+DO OpenExamples DO Navigate "https://github.com/ataj/examples"
+DO DownloadCompiler DO Navigate "https://ataj.dev/download"
