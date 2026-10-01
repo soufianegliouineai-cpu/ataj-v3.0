@@ -1,15 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { subtractDays } from '../src/deadline.mjs';
+import { isIsoDate, subtractDays } from '../src/deadline.mjs';
 
-test('passport renewal window subtracts 90 days', () => {
+test('passport protection subtracts 90 days', () => {
   assert.equal(subtractDays('2027-06-12', 90), '2027-03-14');
 });
-
+test('generic protection supports a 60-day lead time', () => {
+  assert.equal(subtractDays('2027-08-20', 60), '2027-06-21');
+});
 test('deadline calculator handles year boundary', () => {
   assert.equal(subtractDays('2027-01-15', 90), '2026-10-17');
 });
-
-test('invalid date is rejected', () => {
-  assert.throws(() => subtractDays('not-a-date',90), /invalid ISO date/);
+test('real calendar dates are validated', () => {
+  assert.equal(isIsoDate('2027-02-28'), true);
+  assert.equal(isIsoDate('2027-02-30'), false);
+  assert.throws(() => subtractDays('2027-02-30', 90), /invalid ISO date/);
+});
+test('malformed dates are rejected', () => {
+  assert.throws(() => subtractDays('not-a-date', 90), /invalid ISO date/);
 });

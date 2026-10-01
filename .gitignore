@@ -1,8 +1,6 @@
-target/
-*.log
-.DS_Store
 node_modules/
-*.tmp
-__pycache__/
-*.pyc
-.vercel
+dist/
+.env
+.env.*
+!.env.example
+.DS_Store

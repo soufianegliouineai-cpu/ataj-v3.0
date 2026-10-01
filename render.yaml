@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: lifeos-web
+    name: lifeos-ai-prod
     runtime: static
     branch: lifeos-production-bootstrap
-    buildCommand: echo "LifeOS static build ready"
-    staticPublishPath: .
+    buildCommand: npm run verify && rm -rf dist && mkdir -p dist && cp index.html dist/index.html
+    staticPublishPath: dist
     headers:
       - path: /*
         name: X-Content-Type-Options
@@ -12,3 +12,6 @@ services:
       - path: /*
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
