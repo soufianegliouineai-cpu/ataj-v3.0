@@ -71,7 +71,7 @@ async function checkApi(){
     const res=await fetch(API_BASE+'/health',{cache:'no-store'});
     const data=await res.json();
     if(!res.ok||!data.ok) throw new Error('health');
-    badge.textContent='● Production API '+data.version;
+    badge.textContent='● Production API '+data.version+' · live';
     badge.className='live ok';
   }catch{
     badge.textContent='● API unavailable';
@@ -109,7 +109,14 @@ async function runPassport(){
   btn.disabled=true;
   hero.innerHTML='<p class="eyebrow">NEXT ACTION</p><div class="spin"></div><h2>Running production protection flow…</h2><p class="muted">Calling the deployed LifeOS API and validating evidence, rule and task output.</p>';
   try{
-    const res=await fetch(API_BASE+'/v1/demo/passport?expiry=2027-06-12',{cache:'no-store'});
+    const idemKey=sessionStorage.getItem('lifeos-passport-idempotency')||crypto.randomUUID();
+    sessionStorage.setItem('lifeos-passport-idempotency',idemKey);
+    const res=await fetch(API_BASE+'/v1/protection/passport',{
+      method:'POST',
+      cache:'no-store',
+      headers:{'Content-Type':'application/json','Idempotency-Key':idemKey},
+      body:JSON.stringify({expiryDate:'2027-06-12'})
+    });
     const payload=await res.json();
     if(!res.ok||!payload.data) throw new Error(payload?.error?.message||'API request failed');
     renderProtected(payload.data);
