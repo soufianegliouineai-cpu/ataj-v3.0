@@ -47,7 +47,7 @@ h1,h2,h3{font-family:Georgia,serif;font-weight:500;letter-spacing:-.03em}h1{font
 <section class="card hero" id="hero"><p class="eyebrow">NEXT ACTION</p><h2>Protect an expiry date</h2><p class="muted">Choose a document and confirm its expiry date. LifeOS calculates a preparation reminder deterministically without claiming OCR or legal-rule verification.</p><div class="formgrid"><div class="field"><label for="documentType">DOCUMENT</label><select id="documentType"><option value="passport">Passport</option><option value="driving_license">Driving licence</option><option value="insurance">Insurance</option><option value="visa">Visa</option><option value="residence_permit">Residence permit</option><option value="vehicle_registration">Vehicle registration</option><option value="contract">Contract</option><option value="certificate">Certificate</option><option value="other">Other</option></select></div><div class="field"><label for="expiryDate">EXPIRY DATE</label><input id="expiryDate" type="date" value="2027-06-12"></div><div class="field"><label for="leadDays">REMIND BEFORE</label><input id="leadDays" type="number" min="1" max="365" value="90"></div></div><p class="formnote">You confirm this date. No document is uploaded or stored in this version.</p><button class="primary" id="protect">Protect this date →</button></section>
 <section class="card"><p class="eyebrow">LIFE READINESS</p><div class="score"><span id="score">78</span>%</div><div class="meter"><i id="meter"></i></div><div class="row"><span>Identity</span><strong id="identity">Not added</strong></div><div class="row"><span>Deadline safety</span><strong id="deadlineSafety">Ready</strong></div><div class="row"><span>Emergency</span><strong>Needs setup</strong></div></section>
 <section class="card"><p class="eyebrow">LIFE TIMELINE</p><h3>What comes next</h3><div id="timeline" class="empty"><span>○</span><p>Nothing to remember yet.</p><small>LifeOS will build your timeline automatically.</small></div></section>
-<section class="card"><p class="eyebrow">AI EVIDENCE</p><h3>Trust what LifeOS found</h3><div id="evidence" class="empty"><span>◎</span><p>Every important AI fact will show its source.</p><small>No silent administrative guesses.</small></div></section>
+<section class="card"><p class="eyebrow">EVIDENCE</p><h3>Trust what LifeOS used</h3><div id="evidence" class="empty"><span>◎</span><p>Every protected fact keeps its source.</p><small>No silent administrative guesses.</small></div></section>
 </div>
 </section>
 </main>
@@ -88,7 +88,7 @@ function renderProtected(data){
     '<div class="line" style="width:100%"><div><h2>'+data.document.label+'</h2><p class="muted">Prepare by · '+formatDate(deadline.recommendedActionAt)+'</p></div><span class="pill safe">Protected</span></div>'+
     '<div class="deadline">'+formatDate(deadline.dueAt)+'</div>'+
     '<p class="source">◉ User-confirmed expiry · generic deterministic protection · no legal rule applied</p>'+
-    '<button class="primary">Open action workspace →</button>';
+    '<button class="primary" id="protectAnother">Protect another date →</button>';
   document.getElementById('statusTitle').textContent='1 obligation protected';
   document.getElementById('statusBody').textContent='LifeOS calculated the preparation date from your confirmed expiry.';
   document.getElementById('score').textContent='92';
@@ -102,6 +102,7 @@ function renderProtected(data){
   evidence.className='';
   evidence.innerHTML='<div class="evidence"><div><small>CONFIRMED FACT</small><strong>Expiry date · '+formatDate(fact.value)+'</strong><p>User input · '+fact.trustClass+'</p></div><span>✓</span></div>'+
     '<div class="evidence"><div><small>LIFEOS RULE</small><strong>Expiry preparation window</strong><p>'+data.obligation.rule.code+' · deterministic · non-jurisdictional</p></div><span>✓</span></div>';
+  document.getElementById('protectAnother').addEventListener('click',()=>location.reload());
 }
 async function runProtection(){
   const btn=document.getElementById('protect');
