@@ -1,14 +1,24 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "api/ataj-runtime.js", "use": "@vercel/node" },
-    { "src": "frontend/**", "use": "@vercel/static" },
-    { "src": "examples/**", "use": "@vercel/static" }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/ataj-runtime.js" },
-    { "src": "/api", "dest": "/api/ataj-runtime.js" },
-    { "src": "/(.*)", "dest": "/frontend/$1" },
-    { "src": "/", "dest": "/frontend/index.html" }
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    }
   ]
 }
