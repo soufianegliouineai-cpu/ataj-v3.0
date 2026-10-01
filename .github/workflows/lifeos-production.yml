@@ -1,45 +1,43 @@
-name: Deploy LifeOS Production
+name: LifeOS CI
 
 on:
   push:
+    branches:
+      - lifeos-production-bootstrap
+  pull_request:
     branches:
       - lifeos-production-bootstrap
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: lifeos-pages
-  cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Prepare artifact
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests
+        run: npm test
+      - name: Static production build validation
+        run: npm run build
+      - name: Verify live production API
         run: |
-          mkdir -p dist
-          cp index.html dist/index.html
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          python - <<'PY'
+          import json, urllib.request
+          base='https://kxlrkgbyxplvsvelhdpq.supabase.co/functions/v1/lifeos-api'
+          with urllib.request.urlopen(base+'/health', timeout=20) as r:
+              health=json.load(r)
+              assert r.status == 200
+              assert health['ok'] is True
+              assert health['environment'] == 'production'
+          with urllib.request.urlopen(base+'/v1/demo/passport?expiry=2027-06-12', timeout=20) as r:
+              body=json.load(r)
+              assert r.status == 200
+              assert body['data']['deadline']['recommendedActionAt'] == '2027-03-14'
+              assert body['data']['document']['facts'][0]['provenance']['page'] == 1
+          print('Live LifeOS production API verified')
+          PY
