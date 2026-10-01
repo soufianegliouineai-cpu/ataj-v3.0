@@ -1,0 +1,211 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LifeOS AI Bootstrap API",
+    "version": "0.3.0",
+    "description": "Stateless evidence-first bootstrap API. It does not persist personal data, perform OCR, or apply jurisdiction-specific legal rules."
+  },
+  "servers": [
+    {
+      "url": "https://kxlrkgbyxplvsvelhdpq.supabase.co/functions/v1/lifeos-api"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Service health"
+          }
+        }
+      }
+    },
+    "/readiness": {
+      "get": {
+        "operationId": "getReadiness",
+        "responses": {
+          "200": {
+            "description": "Implemented capabilities and explicit limitations"
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "getVersion",
+        "responses": {
+          "200": {
+            "description": "API semantic version"
+          }
+        }
+      }
+    },
+    "/v1/document-types": {
+      "get": {
+        "operationId": "listDocumentTypes",
+        "responses": {
+          "200": {
+            "description": "Supported generic document types"
+          }
+        }
+      }
+    },
+    "/v1/home": {
+      "get": {
+        "operationId": "getHome",
+        "responses": {
+          "200": {
+            "description": "Bootstrap home summary"
+          }
+        }
+      }
+    },
+    "/v1/protection/expiry": {
+      "post": {
+        "operationId": "protectExpiry",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Client-generated key. Repeating the same request with the same key yields the same protectionId."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpiryProtectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Expiry protection calculated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProtectionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid document type, expiry date, lead days, or idempotency key"
+          },
+          "413": {
+            "description": "Payload exceeds 4 KB"
+          },
+          "415": {
+            "description": "Content-Type is not application/json"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ExpiryProtectionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "documentType",
+          "expiryDate"
+        ],
+        "properties": {
+          "documentType": {
+            "type": "string",
+            "enum": [
+              "passport",
+              "driving_license",
+              "insurance",
+              "visa",
+              "residence_permit",
+              "vehicle_registration",
+              "contract",
+              "certificate",
+              "other"
+            ]
+          },
+          "expiryDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "leadDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365,
+            "default": 90
+          }
+        }
+      },
+      "ProtectionResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "protectionId",
+              "document",
+              "obligation",
+              "deadline",
+              "task",
+              "evidence"
+            ],
+            "properties": {
+              "protectionId": {
+                "type": "string"
+              },
+              "document": {
+                "type": "object"
+              },
+              "obligation": {
+                "type": "object"
+              },
+              "deadline": {
+                "type": "object"
+              },
+              "task": {
+                "type": "object"
+              },
+              "evidence": {
+                "type": "object"
+              }
+            }
+          },
+          "meta": {
+            "type": "object",
+            "required": [
+              "requestId",
+              "version",
+              "idempotent"
+            ],
+            "properties": {
+              "requestId": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "const": "0.3.0"
+              },
+              "idempotent": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
