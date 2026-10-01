@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 const html = readFileSync('index.html','utf8');
 const vercel = JSON.parse(readFileSync('vercel.json','utf8'));
 const pkg = JSON.parse(readFileSync('package.json','utf8'));
+const openapi = JSON.parse(readFileSync('openapi.json','utf8'));
 
 const required = [
   '<title>LifeOS AI',
@@ -31,9 +32,16 @@ if (!Array.isArray(vercel.builds) || !vercel.builds.some(b => b.src === 'index.h
 if (html.includes('/v1/demo/passport?')) failures.push('frontend must not use legacy GET demo route');
 if (html.includes('/v1/protection/passport')) failures.push('frontend must use generic expiry protection endpoint');
 if (html.includes('EXTRACTED FACT')) failures.push('frontend must not claim extraction before OCR is implemented');
+if (html.includes('Open action workspace')) failures.push('frontend must not expose an unimplemented action workspace');
+if (html.includes('AI EVIDENCE')) failures.push('frontend must not label user-confirmed evidence as AI evidence');
+
+if (openapi.openapi !== '3.1.0') failures.push('OpenAPI version must be 3.1.0');
+if (openapi.info?.version !== '0.3.0') failures.push('OpenAPI contract version must match API 0.3.0');
+if (!openapi.paths?.['/v1/protection/expiry']?.post) failures.push('OpenAPI missing POST /v1/protection/expiry');
+if (!openapi.paths?.['/readiness']?.get) failures.push('OpenAPI missing GET /readiness');
 
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);
 }
-console.log('LifeOS v0.3 static production build validated');
+console.log('LifeOS v0.3 static production and OpenAPI contract validated');
