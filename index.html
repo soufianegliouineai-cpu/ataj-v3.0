@@ -20,14 +20,14 @@ h1,h2,h3{font-family:Georgia,serif;font-weight:500;letter-spacing:-.03em}h1{font
 .avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:#fff;font-weight:800}
 .status{display:flex;align-items:center;gap:14px;background:var(--accent2);padding:14px 18px;border-radius:16px;margin:26px 0}.status i{font-style:normal;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:#fff}.status p{margin:2px 0 0;color:#4f6758;font-size:13px}
 .grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,.7fr);gap:18px}.card{background:#fff;border:1px solid var(--line);border-radius:24px;padding:24px}.hero{min-height:305px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;box-shadow:var(--shadow)}
-.muted{color:var(--muted);line-height:1.6}.primary{border:0;background:var(--ink);color:#fff;padding:13px 16px;border-radius:13px;font-weight:700;cursor:pointer;margin-top:14px}.primary:disabled{opacity:.55;cursor:wait}
+.muted{color:var(--muted);line-height:1.6}.formgrid{display:grid;grid-template-columns:1.35fr 1fr .65fr;gap:10px;width:100%;margin-top:14px}.field{display:grid;gap:6px}.field label{font-size:10px;font-weight:800;letter-spacing:.11em;color:#758078}.field select,.field input{width:100%;border:1px solid var(--line);background:#fafbf9;color:var(--ink);border-radius:12px;padding:12px;font:inherit;outline:none}.field select:focus,.field input:focus{border-color:#9fb8a7;box-shadow:0 0 0 3px rgba(23,91,59,.08)}.formnote{font-size:11px;color:var(--muted);margin:10px 0 0}.primary{border:0;background:var(--ink);color:#fff;padding:13px 16px;border-radius:13px;font-weight:700;cursor:pointer;margin-top:14px}.primary:disabled{opacity:.55;cursor:wait}
 .score{font-family:Georgia,serif;font-size:66px}.meter{height:7px;background:#edf0ec;border-radius:99px;overflow:hidden;margin:9px 0 23px}.meter i{display:block;height:100%;width:78%;background:var(--accent);transition:width .4s}
 .row{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding:11px 0;font-size:13px}.empty{min-height:120px;display:grid;place-items:center;align-content:center;text-align:center;color:var(--muted)}.empty p{font-weight:700;color:var(--ink);margin:8px 0 3px}
 .pill{font-size:11px;font-weight:800;background:#eef0ec;border-radius:999px;padding:7px 9px}.safe{background:var(--accent2);color:var(--accent)}.line{display:flex;justify-content:space-between;align-items:flex-start}.deadline{font-family:Georgia,serif;font-size:44px;margin:16px 0 4px}.source{font-size:12px;color:var(--muted)}
 .timeline{display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:14px;padding:15px;background:#f7f8f5;border-radius:17px;margin-top:18px}.date{text-align:center}.date small{display:block;letter-spacing:.12em}.date strong{font-family:Georgia,serif;font-size:26px}
 .evidence{display:flex;justify-content:space-between;padding:14px 0;border-top:1px solid var(--line)}.evidence strong{display:block;margin:4px 0}.evidence p{margin:0;color:var(--muted);font-size:12px}.evidence>span{font-weight:800;color:var(--accent)}
 .spin{width:34px;height:34px;border-radius:50%;border:3px solid #dfe5df;border-top-color:var(--accent);animation:s .8s linear infinite}@keyframes s{to{transform:rotate(360deg)}}
-@media(max-width:850px){.shell{display:block}.side{display:none}.content{padding:28px 18px}.grid{grid-template-columns:1fr}h1{font-size:39px}.live{display:none}}
+@media(max-width:850px){.shell{display:block}.side{display:none}.content{padding:28px 18px}.grid{grid-template-columns:1fr}.formgrid{grid-template-columns:1fr}h1{font-size:39px}.live{display:none}}
 </style>
 </head>
 <body>
@@ -44,7 +44,7 @@ h1,h2,h3{font-family:Georgia,serif;font-weight:500;letter-spacing:-.03em}h1{font
 </div>
 <div class="status"><i>✓</i><div><strong id="statusTitle">Everything looks calm</strong><p id="statusBody">Add an important document to activate your first protection.</p></div></div>
 <div class="grid">
-<section class="card hero" id="hero"><p class="eyebrow">NEXT ACTION</p><h2>Protect your first document</h2><p class="muted">Run the production passport flow. LifeOS retrieves evidence-backed facts, calculates the preparation window deterministically, and creates the next task.</p><button class="primary" id="protect">Run production passport flow →</button></section>
+<section class="card hero" id="hero"><p class="eyebrow">NEXT ACTION</p><h2>Protect an expiry date</h2><p class="muted">Choose a document and confirm its expiry date. LifeOS calculates a preparation reminder deterministically without claiming OCR or legal-rule verification.</p><div class="formgrid"><div class="field"><label for="documentType">DOCUMENT</label><select id="documentType"><option value="passport">Passport</option><option value="driving_license">Driving licence</option><option value="insurance">Insurance</option><option value="visa">Visa</option><option value="residence_permit">Residence permit</option><option value="vehicle_registration">Vehicle registration</option><option value="contract">Contract</option><option value="certificate">Certificate</option><option value="other">Other</option></select></div><div class="field"><label for="expiryDate">EXPIRY DATE</label><input id="expiryDate" type="date" value="2027-06-12"></div><div class="field"><label for="leadDays">REMIND BEFORE</label><input id="leadDays" type="number" min="1" max="365" value="90"></div></div><p class="formnote">You confirm this date. No document is uploaded or stored in this version.</p><button class="primary" id="protect">Protect this date →</button></section>
 <section class="card"><p class="eyebrow">LIFE READINESS</p><div class="score"><span id="score">78</span>%</div><div class="meter"><i id="meter"></i></div><div class="row"><span>Identity</span><strong id="identity">Not added</strong></div><div class="row"><span>Deadline safety</span><strong id="deadlineSafety">Ready</strong></div><div class="row"><span>Emergency</span><strong>Needs setup</strong></div></section>
 <section class="card"><p class="eyebrow">LIFE TIMELINE</p><h3>What comes next</h3><div id="timeline" class="empty"><span>○</span><p>Nothing to remember yet.</p><small>LifeOS will build your timeline automatically.</small></div></section>
 <section class="card"><p class="eyebrow">AI EVIDENCE</p><h3>Trust what LifeOS found</h3><div id="evidence" class="empty"><span>◎</span><p>Every important AI fact will show its source.</p><small>No silent administrative guesses.</small></div></section>
@@ -85,12 +85,12 @@ function renderProtected(data){
   const md=monthDay(deadline.recommendedActionAt);
   document.getElementById('hero').innerHTML=
     '<p class="eyebrow">NEXT ACTION</p>'+
-    '<div class="line" style="width:100%"><div><h2>Passport renewal</h2><p class="muted">Recommended action · '+formatDate(deadline.recommendedActionAt)+'</p></div><span class="pill safe">Protected</span></div>'+
+    '<div class="line" style="width:100%"><div><h2>'+data.document.label+'</h2><p class="muted">Prepare by · '+formatDate(deadline.recommendedActionAt)+'</p></div><span class="pill safe">Protected</span></div>'+
     '<div class="deadline">'+formatDate(deadline.dueAt)+'</div>'+
-    '<p class="source">◉ Expiry extracted from source · renewal window calculated by LifeOS rule '+data.obligation.rule.code+'</p>'+
+    '<p class="source">◉ User-confirmed expiry · generic deterministic protection · no legal rule applied</p>'+
     '<button class="primary">Open action workspace →</button>';
   document.getElementById('statusTitle').textContent='1 obligation protected';
-  document.getElementById('statusBody').textContent='Production API confirmed the renewal window and task.';
+  document.getElementById('statusBody').textContent='LifeOS calculated the preparation date from your confirmed expiry.';
   document.getElementById('score').textContent='92';
   document.getElementById('meter').style.width='92%';
   document.getElementById('identity').textContent='Protected';
@@ -100,32 +100,41 @@ function renderProtected(data){
   timeline.innerHTML='<div class="date"><small>'+md.month+'</small><strong>'+md.day+'</strong></div><div><strong>'+task.title+'</strong><p class="muted">'+task.status+' · deterministic deadline</p></div><span class="pill">Ready</span>';
   const evidence=document.getElementById('evidence');
   evidence.className='';
-  evidence.innerHTML='<div class="evidence"><div><small>EXTRACTED FACT</small><strong>Expiry date · '+formatDate(fact.value)+'</strong><p>Page '+fact.provenance.page+' · '+fact.provenance.label+'</p></div><span>'+Math.round(fact.confidence*1000)/10+'%</span></div>'+
-    '<div class="evidence"><div><small>LIFEOS RULE</small><strong>Renewal preparation window</strong><p>'+data.obligation.rule.code+' · deterministic</p></div><span>✓</span></div>';
+  evidence.innerHTML='<div class="evidence"><div><small>CONFIRMED FACT</small><strong>Expiry date · '+formatDate(fact.value)+'</strong><p>User input · '+fact.trustClass+'</p></div><span>✓</span></div>'+
+    '<div class="evidence"><div><small>LIFEOS RULE</small><strong>Expiry preparation window</strong><p>'+data.obligation.rule.code+' · deterministic · non-jurisdictional</p></div><span>✓</span></div>';
 }
-async function runPassport(){
+async function runProtection(){
   const btn=document.getElementById('protect');
   const hero=document.getElementById('hero');
+  const documentType=document.getElementById('documentType').value;
+  const expiryDate=document.getElementById('expiryDate').value;
+  const leadDays=Number(document.getElementById('leadDays').value);
+  if(!expiryDate||!Number.isInteger(leadDays)||leadDays<1||leadDays>365){
+    document.getElementById('statusTitle').textContent='Check the protection details';
+    document.getElementById('statusBody').textContent='Choose a valid expiry date and a reminder window from 1 to 365 days.';
+    return;
+  }
   btn.disabled=true;
-  hero.innerHTML='<p class="eyebrow">NEXT ACTION</p><div class="spin"></div><h2>Running production protection flow…</h2><p class="muted">Calling the deployed LifeOS API and validating evidence, rule and task output.</p>';
+  hero.innerHTML='<p class="eyebrow">NEXT ACTION</p><div class="spin"></div><h2>Protecting your confirmed date…</h2><p class="muted">Calculating the preparation window and verifying the production API response.</p>';
   try{
-    const idemKey=sessionStorage.getItem('lifeos-passport-idempotency')||crypto.randomUUID();
-    sessionStorage.setItem('lifeos-passport-idempotency',idemKey);
-    const res=await fetch(API_BASE+'/v1/protection/passport',{
+    const storageKey='lifeos-idem:'+documentType+':'+expiryDate+':'+leadDays;
+    const idemKey=sessionStorage.getItem(storageKey)||crypto.randomUUID();
+    sessionStorage.setItem(storageKey,idemKey);
+    const res=await fetch(API_BASE+'/v1/protection/expiry',{
       method:'POST',
       cache:'no-store',
       headers:{'Content-Type':'application/json','Idempotency-Key':idemKey},
-      body:JSON.stringify({expiryDate:'2027-06-12'})
+      body:JSON.stringify({documentType,expiryDate,leadDays})
     });
     const payload=await res.json();
     if(!res.ok||!payload.data) throw new Error(payload?.error?.message||'API request failed');
     renderProtected(payload.data);
   }catch(err){
-    hero.innerHTML='<p class="eyebrow">CONNECTION ERROR</p><h2>Production API could not be reached.</h2><p class="muted">'+String(err.message||err)+'</p><button class="primary" id="retry">Retry →</button>';
-    document.getElementById('retry').addEventListener('click',runPassport);
+    hero.innerHTML='<p class="eyebrow">CONNECTION ERROR</p><h2>Protection could not be created.</h2><p class="muted">'+String(err.message||err)+'</p><button class="primary" id="retry">Retry →</button>';
+    document.getElementById('retry').addEventListener('click',()=>location.reload());
   }
 }
-document.getElementById('protect').addEventListener('click',runPassport);
+document.getElementById('protect').addEventListener('click',runProtection);
 checkApi();
 </script>
 </body>
