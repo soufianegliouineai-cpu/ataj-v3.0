@@ -37,20 +37,30 @@ jobs:
               with urllib.request.urlopen(base + path, timeout=20) as r:
                   return r.status, dict(r.headers), json.load(r)
 
-          def post(path, body, idem=None):
-              data = json.dumps(body).encode()
-              headers = {'Content-Type': 'application/json'}
+          def post(path, body, idem=None, content_type='application/json'):
+              data = json.dumps(body).encode() if isinstance(body, dict) else body.encode()
+              headers = {'Content-Type': content_type}
               if idem:
                   headers['Idempotency-Key'] = idem
               req = urllib.request.Request(base + path, data=data, headers=headers, method='POST')
               with urllib.request.urlopen(req, timeout=20) as r:
                   return r.status, dict(r.headers), json.load(r)
 
+          def expect_error(req, status, code):
+              try:
+                  urllib.request.urlopen(req, timeout=20)
+                  raise AssertionError(f'{code} unexpectedly succeeded')
+              except urllib.error.HTTPError as e:
+                  payload = json.load(e)
+                  assert e.code == status, (e.code, payload)
+                  assert payload['error']['code'] == code, payload
+
           status, headers, health = get('/health')
           assert status == 200 and health['ok'] is True
           assert health['version'] == '0.3.0'
           headers_ci = {k.lower(): v for k, v in headers.items()}
           assert headers_ci.get('x-lifeos-version') == '0.3.0'
+          assert headers_ci.get('cache-control') == 'no-store'
 
           status, _, ready = get('/readiness')
           assert status == 200 and ready['ready'] is True
@@ -60,8 +70,7 @@ jobs:
 
           status, _, types = get('/v1/document-types')
           assert status == 200
-          assert 'passport' in types['data']
-          assert 'driving_license' in types['data']
+          assert {'passport','driving_license','insurance','visa'}.issubset(set(types['data']))
 
           body = {'documentType':'driving_license','expiryDate':'2027-08-20','leadDays':60}
           s1, _, p1 = post('/v1/protection/expiry', body, 'ci-v03-001')
@@ -75,19 +84,58 @@ jobs:
           assert p1['data']['evidence']['aiExtractionPerformed'] is False
           assert p1['data']['evidence']['legalRuleApplied'] is False
 
-          bad = urllib.request.Request(
+          expired_status, _, expired = post(
+              '/v1/protection/expiry',
+              {'documentType':'passport','expiryDate':'2025-01-01','leadDays':90},
+              'ci-expired-001',
+          )
+          assert expired_status == 200
+          assert expired['data']['deadline']['status'] == 'overdue'
+          assert expired['data']['deadline']['severity'] == 'overdue'
+          assert expired['data']['task']['status'] == 'action_due'
+
+          bad_type = urllib.request.Request(
               base + '/v1/protection/expiry',
               data=json.dumps({'documentType':'made_up_document','expiryDate':'2027-08-20'}).encode(),
               headers={'Content-Type':'application/json'},
               method='POST',
           )
-          try:
-              urllib.request.urlopen(bad, timeout=20)
-              raise AssertionError('invalid document type unexpectedly succeeded')
-          except urllib.error.HTTPError as e:
-              payload = json.load(e)
-              assert e.code == 400
-              assert payload['error']['code'] == 'INVALID_DOCUMENT_TYPE'
+          expect_error(bad_type, 400, 'INVALID_DOCUMENT_TYPE')
 
-          print('LifeOS API v0.3.0 contract verified')
+          bad_date = urllib.request.Request(
+              base + '/v1/protection/expiry',
+              data=json.dumps({'documentType':'passport','expiryDate':'2027-02-30'}).encode(),
+              headers={'Content-Type':'application/json'},
+              method='POST',
+          )
+          expect_error(bad_date, 400, 'INVALID_EXPIRY_DATE')
+
+          bad_lead = urllib.request.Request(
+              base + '/v1/protection/expiry',
+              data=json.dumps({'documentType':'passport','expiryDate':'2027-06-12','leadDays':0}).encode(),
+              headers={'Content-Type':'application/json'},
+              method='POST',
+          )
+          expect_error(bad_lead, 400, 'INVALID_LEAD_DAYS')
+
+          wrong_type = urllib.request.Request(
+              base + '/v1/protection/expiry',
+              data='plain text'.encode(),
+              headers={'Content-Type':'text/plain'},
+              method='POST',
+          )
+          expect_error(wrong_type, 415, 'UNSUPPORTED_MEDIA_TYPE')
+
+          wrong_method = urllib.request.Request(base + '/v1/protection/expiry', method='GET')
+          expect_error(wrong_method, 405, 'METHOD_NOT_ALLOWED')
+
+          long_idem = urllib.request.Request(
+              base + '/v1/protection/expiry',
+              data=json.dumps({'documentType':'passport','expiryDate':'2027-06-12'}).encode(),
+              headers={'Content-Type':'application/json','Idempotency-Key':'x'*201},
+              method='POST',
+          )
+          expect_error(long_idem, 400, 'INVALID_IDEMPOTENCY_KEY')
+
+          print('LifeOS API v0.3.0 success and failure contracts verified')
           PY
