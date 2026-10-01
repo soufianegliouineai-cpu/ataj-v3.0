@@ -12,3 +12,12 @@ export function subtractDays(iso, days) {
   d.setUTCDate(d.getUTCDate() - days);
   return d.toISOString().slice(0,10);
 }
+
+export function severityFor(daysRemaining) {
+  if (!Number.isInteger(daysRemaining)) throw new Error('daysRemaining must be an integer');
+  if (daysRemaining < 0) return 'overdue';
+  if (daysRemaining <= 7) return 'critical';
+  if (daysRemaining <= 30) return 'urgent';
+  if (daysRemaining <= 90) return 'important';
+  return 'normal';
+}
