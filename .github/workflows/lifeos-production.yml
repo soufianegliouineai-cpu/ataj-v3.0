@@ -48,36 +48,46 @@ jobs:
 
           status, headers, health = get('/health')
           assert status == 200 and health['ok'] is True
-          assert health['version'] == '0.2.0'
+          assert health['version'] == '0.3.0'
           headers_ci = {k.lower(): v for k, v in headers.items()}
-          assert headers_ci.get('x-lifeos-version') == '0.2.0'
+          assert headers_ci.get('x-lifeos-version') == '0.3.0'
 
           status, _, ready = get('/readiness')
           assert status == 200 and ready['ready'] is True
-          assert ready['capabilities']['persistence'] == 'not_enabled'
-          assert ready['capabilities']['authentication'] == 'not_enabled'
+          assert ready['capabilities']['genericExpiryProtection'] == 'ready'
+          assert ready['capabilities']['ocrExtraction'] == 'not_enabled'
+          assert ready['capabilities']['jurisdictionRules'] == 'not_enabled'
 
-          s1, _, p1 = post('/v1/protection/passport', {'expiryDate': '2027-06-12'}, 'ci-stable-001')
-          s2, _, p2 = post('/v1/protection/passport', {'expiryDate': '2027-06-12'}, 'ci-stable-001')
+          status, _, types = get('/v1/document-types')
+          assert status == 200
+          assert 'passport' in types['data']
+          assert 'driving_license' in types['data']
+
+          body = {'documentType':'driving_license','expiryDate':'2027-08-20','leadDays':60}
+          s1, _, p1 = post('/v1/protection/expiry', body, 'ci-v03-001')
+          s2, _, p2 = post('/v1/protection/expiry', body, 'ci-v03-001')
           assert s1 == 200 and s2 == 200
-          assert p1['data']['deadline']['recommendedActionAt'] == '2027-03-14'
+          assert p1['data']['deadline']['recommendedActionAt'] == '2027-06-21'
           assert p1['data']['protectionId'] == p2['data']['protectionId']
-          assert p1['data']['document']['facts'][0]['provenance']['page'] == 1
-          assert p1['data']['evidence']['authoritativeDeadlineComputedByRule'] is True
+          fact = p1['data']['document']['facts'][0]
+          assert fact['trustClass'] == 'USER_CONFIRMED'
+          assert fact['origin'] == 'user_confirmed'
+          assert p1['data']['evidence']['aiExtractionPerformed'] is False
+          assert p1['data']['evidence']['legalRuleApplied'] is False
 
           bad = urllib.request.Request(
-              base + '/v1/protection/passport',
-              data=json.dumps({'expiryDate': '2027-02-30'}).encode(),
-              headers={'Content-Type': 'application/json'},
+              base + '/v1/protection/expiry',
+              data=json.dumps({'documentType':'made_up_document','expiryDate':'2027-08-20'}).encode(),
+              headers={'Content-Type':'application/json'},
               method='POST',
           )
           try:
               urllib.request.urlopen(bad, timeout=20)
-              raise AssertionError('invalid date unexpectedly succeeded')
+              raise AssertionError('invalid document type unexpectedly succeeded')
           except urllib.error.HTTPError as e:
               payload = json.load(e)
               assert e.code == 400
-              assert payload['error']['code'] == 'INVALID_EXPIRY_DATE'
+              assert payload['error']['code'] == 'INVALID_DOCUMENT_TYPE'
 
-          print('LifeOS API v0.2.0 contract verified')
+          print('LifeOS API v0.3.0 contract verified')
           PY
