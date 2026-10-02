@@ -170,6 +170,8 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.equal(uploadIntent.body.data.storage.configured, false);
   assert.equal(uploadIntent.body.data.storage.provider, 'unconfigured');
   assert.equal(uploadIntent.body.data.storage.uploadUrl, null);
+  assert.equal(uploadIntent.body.data.file.declaredSha256, 'a'.repeat(64));
+  assert.equal(uploadIntent.body.data.file.hashVerification, 'pending');
   assert.equal(uploadIntent.body.meta.byteTransportConfigured, false);
 
   const uploads = await request(app.getHttpServer())
@@ -215,7 +217,31 @@ test('authenticated HTTP flow creates household and persists protection graph', 
     .expect(400);
   assert.equal(unsafeFilename.body.error.code, 'VALIDATION_ERROR');
 
-  const badHash = await request(app.getHttpServer())
+  const blankFilename = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/intents`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      fileName: '   ',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      documentType: 'passport',
+    })
+    .expect(400);
+  assert.equal(blankFilename.body.error.code, 'VALIDATION_ERROR');
+
+  const dotFilename = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/intents`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      fileName: '..',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      documentType: 'passport',
+    })
+    .expect(400);
+  assert.equal(dotFilename.body.error.code, 'VALIDATION_ERROR');
+
+    const badHash = await request(app.getHttpServer())
     .post(`/v1/households/${householdId}/uploads/intents`)
     .set('Authorization', `Bearer ${token}`)
     .send({
