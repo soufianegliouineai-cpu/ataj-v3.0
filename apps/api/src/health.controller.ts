@@ -2,12 +2,14 @@ import { Controller, Get } from '@nestjs/common';
 import { LIFEOS_API_VERSION } from './constants.js';
 import { OidcAuthService } from './auth/oidc-auth.service.js';
 import { DatabaseService } from './database/database.service.js';
+import { ObjectStorageService } from './storage/object-storage.service.js';
 
 @Controller()
 export class HealthController {
   constructor(
     private readonly database: DatabaseService,
     private readonly auth: OidcAuthService,
+    private readonly storage: ObjectStorageService,
   ) {}
 
   @Get('health')
@@ -45,7 +47,7 @@ export class HealthController {
             ? 'degraded'
             : 'not_configured',
         uploadMetadata: database.ok ? 'ready' : database.enabled ? 'degraded' : 'not_configured',
-        byteTransport: 'not_configured',
+        byteTransport: this.storage.configured ? 'ready' : 'not_configured',
         malwareScanning: 'not_configured',
         ocrExtraction: 'not_enabled',
         jurisdictionRules: 'not_enabled',
@@ -55,6 +57,7 @@ export class HealthController {
         oidc: {
           configured: this.auth.enabled,
         },
+        objectStorage: this.storage.capability,
       },
     };
   }
