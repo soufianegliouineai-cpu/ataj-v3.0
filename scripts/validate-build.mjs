@@ -57,6 +57,11 @@ for (const [name, openapi] of [['edge', edgeOpenapi], ['nest', nestOpenapi]]) {
 if (!edgeOpenapi.paths?.['/v1/protection/expiry']?.post) failures.push('Edge OpenAPI missing POST /v1/protection/expiry');
 if (!edgeOpenapi.paths?.['/readiness']?.get) failures.push('Edge OpenAPI missing GET /readiness');
 
+const homePath = nestOpenapi.paths?.['/home']?.get;
+if (!homePath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
+  failures.push('Nest OpenAPI missing authenticated Home aggregate');
+}
+
 const householdListPath = nestOpenapi.paths?.['/households']?.get;
 if (!householdListPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
   failures.push('Nest OpenAPI missing authenticated household list');
