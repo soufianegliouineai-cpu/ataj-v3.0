@@ -125,7 +125,7 @@ jobs:
 
           status, _, types = get('/v1/document-types')
           assert status == 200
-          assert {'passport','driving_license','insurance','visa'}.issubset(set(types['data']))
+          assert {'passport','identity_card','driving_license','insurance','visa'}.issubset(set(types['data']))
 
           body = {'documentType':'driving_license','expiryDate':'2027-08-20','leadDays':60}
           s1, _, p1 = post('/v1/protection/expiry', body, 'ci-v03-001')
