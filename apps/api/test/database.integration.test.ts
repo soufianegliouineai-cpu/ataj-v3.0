@@ -36,6 +36,32 @@ after(async () => {
   if (app) await app.close();
 });
 
+test('database transaction sets the expected RLS identity and household membership', { skip: !enabled }, async () => {
+  const context = await database.withUserTransaction(ownerId, async (client) => {
+    const result = await client.query<{
+      db_user: string;
+      setting: string | null;
+      current_user_id: string | null;
+      is_member: boolean;
+      membership_rows: number;
+    }>(`
+      select
+        current_user::text as db_user,
+        current_setting('lifeos.user_id', true) as setting,
+        private.current_user_id()::text as current_user_id,
+        private.is_household_member($1)::boolean as is_member,
+        (select count(*)::int from public.household_members where household_id=$1) as membership_rows
+    `, [householdId]);
+    return result.rows[0];
+  });
+
+  assert.equal(context?.db_user, 'lifeos_app');
+  assert.equal(context?.setting, ownerId);
+  assert.equal(context?.current_user_id, ownerId);
+  assert.equal(context?.is_member, true);
+  assert.equal(context?.membership_rows, 1);
+});
+
 test('PostgreSQL persistence creates the full protection graph atomically', { skip: !enabled }, async () => {
   assert.equal(database.enabled, true);
   const result = protection.protect('passport', '2028-06-12', 90, 'db-integration-atomic');
