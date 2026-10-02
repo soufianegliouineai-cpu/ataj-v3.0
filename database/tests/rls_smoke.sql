@@ -74,6 +74,26 @@ insert into public.deadlines(
   'document.expiry_date'
 );
 
+insert into public.document_uploads(
+  id,household_id,owner_user_id,owner_person_id,document_type,
+  original_filename,declared_mime_type,declared_size_bytes,declared_sha256,
+  object_key,storage_provider,status,malware_status
+) values (
+  '80000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001',
+  'passport',
+  'passport.pdf',
+  'application/pdf',
+  1024,
+  repeat('a',64),
+  'households/10000000-0000-0000-0000-000000000001/users/00000000-0000-0000-0000-000000000001/uploads/80000000-0000-0000-0000-000000000001/source.pdf',
+  'unconfigured',
+  'intent_created',
+  'pending'
+);
+
 select set_config('lifeos.user_id','00000000-0000-0000-0000-000000000002',false);
 
 do $$
@@ -90,9 +110,41 @@ begin
   if (select count(*) from public.document_facts where document_id='30000000-0000-0000-0000-000000000001') <> 0 then
     raise exception 'private fact leaked before share';
   end if;
-end $$;
+  if (select count(*) from public.document_uploads where id='80000000-0000-0000-0000-000000000001') <> 0 then
+    raise exception 'private upload metadata leaked to household member';
+  end if;
+end $;
+
+insert into public.document_uploads(
+  id,household_id,owner_user_id,document_type,original_filename,
+  declared_mime_type,declared_size_bytes,object_key
+) values (
+  '80000000-0000-0000-0000-000000000002',
+  '10000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000002',
+  'other',
+  'member.pdf',
+  'application/pdf',
+  512,
+  'households/10000000-0000-0000-0000-000000000001/users/00000000-0000-0000-0000-000000000002/uploads/80000000-0000-0000-0000-000000000002/source.pdf'
+);
+
+do $
+begin
+  if (select count(*) from public.document_uploads where id='80000000-0000-0000-0000-000000000002') <> 1 then
+    raise exception 'household member cannot create or read own upload intent';
+  end if;
+end $;
 
 select set_config('lifeos.user_id','00000000-0000-0000-0000-000000000001',false);
+
+do $
+begin
+  if (select count(*) from public.document_uploads) <> 1 then
+    raise exception 'upload metadata leaked across household users';
+  end if;
+end $;
+
 insert into public.document_shares(document_id,user_id,can_edit) values (
   '30000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-000000000002',
@@ -127,7 +179,31 @@ begin
   if (select count(*) from public.documents where id='30000000-0000-0000-0000-000000000001') <> 0 then
     raise exception 'outsider can read document';
   end if;
-end $$;
+  if (select count(*) from public.document_uploads) <> 0 then
+    raise exception 'outsider can read upload metadata';
+  end if;
+end $;
+
+do $
+begin
+  begin
+    insert into public.document_uploads(
+      household_id,owner_user_id,document_type,original_filename,
+      declared_mime_type,declared_size_bytes,object_key
+    ) values (
+      '10000000-0000-0000-0000-000000000001',
+      '00000000-0000-0000-0000-000000000003',
+      'other',
+      'outsider.pdf',
+      'application/pdf',
+      100,
+      'outsider/blocked/source.pdf'
+    );
+    raise exception 'outsider created upload intent in another household';
+  exception when insufficient_privilege then
+    null;
+  end;
+end $;
 
 reset role;
 select 'LifeOS provider-neutral RLS smoke tests passed' as result;
