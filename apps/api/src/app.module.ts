@@ -7,13 +7,14 @@ import { ExtractionReviewModule } from './extractions/extraction-review.module.j
 import { HouseholdModule } from './households/household.module.js';
 import { PersonModule } from './people/person.module.js';
 import { ProtectionModule } from './protection/protection.module.js';
+import { MalwareScannerModule } from './scanning/malware-scanner.module.js';
 import { TaskModule } from './tasks/task.module.js';
 import { TimelineModule } from './timeline/timeline.module.js';
 import { UploadModule } from './uploads/upload.module.js';
 import { ObjectStorageModule } from './storage/object-storage.module.js';
 
 @Module({
-  imports: [AuthModule, DatabaseModule, ObjectStorageModule, ExtractionReviewModule, HomeModule, HouseholdModule, PersonModule, ProtectionModule, TaskModule, TimelineModule, UploadModule],
+  imports: [AuthModule, DatabaseModule, ObjectStorageModule, MalwareScannerModule, ExtractionReviewModule, HomeModule, HouseholdModule, PersonModule, ProtectionModule, TaskModule, TimelineModule, UploadModule],
   controllers: [HealthController],
 })
 export class AppModule {}
