@@ -3,7 +3,7 @@
   "info": {
     "title": "LifeOS AI Nest API",
     "version": "0.3.0",
-    "description": "Provider-neutral NestJS API target. Persistent writes require verified OIDC JWTs and PostgreSQL RLS. Upload metadata is supported, but byte transport, malware scanning, OCR, and a public production hostname are not configured yet."
+    "description": "Provider-neutral NestJS API target. Persistent writes require verified OIDC JWTs and PostgreSQL RLS. Upload metadata and explicit extraction review are implemented; byte transport, malware scanning, a live OCR engine, jurisdiction rules, and a public production hostname are not configured yet."
   },
   "servers": [
     {
@@ -450,6 +450,106 @@
           },
           "404": {
             "description": "Household not found or not visible."
+          }
+        }
+      }
+    },
+    "/households/{householdId}/extractions/{runId}": {
+      "get": {
+        "operationId": "getExtractionReview",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "householdId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Owner-private AI-extracted fields with model/source/page provenance and review status."
+          },
+          "401": {
+            "description": "Bearer token missing or invalid."
+          },
+          "404": {
+            "description": "Household or extraction not found or not visible."
+          },
+          "503": {
+            "description": "Persistence not configured."
+          }
+        }
+      }
+    },
+    "/households/{householdId}/extractions/{runId}/fields/{fieldId}/confirm": {
+      "post": {
+        "operationId": "confirmExtractedField",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "householdId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "fieldId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Explicit owner confirmation promotes one extracted field to a USER_CONFIRMED document fact while retaining original AI provenance. Repeated calls replay the same fact."
+          },
+          "401": {
+            "description": "Bearer token missing or invalid."
+          },
+          "404": {
+            "description": "Household, extraction, or field not found or not visible."
+          },
+          "409": {
+            "description": "Extraction not ready or field was rejected."
+          },
+          "503": {
+            "description": "Persistence not configured."
           }
         }
       }
