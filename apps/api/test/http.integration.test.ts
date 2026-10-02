@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import test, { after, before } from 'node:test';
 import type { AddressInfo } from 'node:net';
@@ -155,16 +156,19 @@ test('authenticated HTTP flow creates household and persists protection graph', 
 
   assert.ok(people.body.data.some((item: { id: string }) => item.id === personId));
 
+  const uploadBytes = Buffer.alloc(1024, 0x25);
+  const uploadSha256 = createHash('sha256').update(uploadBytes).digest('hex');
+
   const uploadIntent = await request(app.getHttpServer())
     .post(`/v1/households/${householdId}/uploads/intents`)
     .set('Authorization', `Bearer ${token}`)
     .send({
       fileName: 'passport.pdf',
       mimeType: 'application/pdf',
-      sizeBytes: 1024,
+      sizeBytes: uploadBytes.length,
       documentType: 'passport',
       personId,
-      sha256: 'a'.repeat(64),
+      sha256: uploadSha256,
     })
     .expect(201);
 
@@ -178,11 +182,10 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.equal(uploadIntent.body.data.storage.requiredHeaders['x-ms-blob-type'], 'BlockBlob');
   assert.equal(uploadIntent.body.data.storage.requiredHeaders['Content-Type'], 'application/pdf');
   assert.ok(Date.parse(uploadIntent.body.data.storage.expiresAt) > Date.now());
-  assert.equal(uploadIntent.body.data.file.declaredSha256, 'a'.repeat(64));
+  assert.equal(uploadIntent.body.data.file.declaredSha256, uploadSha256);
   assert.equal(uploadIntent.body.data.file.hashVerification, 'pending');
   assert.equal(uploadIntent.body.meta.byteTransportConfigured, true);
 
-  const uploadBytes = Buffer.alloc(1024, 0x25);
   const putResponse = await fetch(uploadIntent.body.data.storage.uploadUrl, {
     method: 'PUT',
     headers: uploadIntent.body.data.storage.requiredHeaders,
@@ -201,18 +204,94 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.equal(finalizedUpload.body.data.status, 'quarantined');
   assert.equal(finalizedUpload.body.data.quarantine.malwareStatus, 'pending');
   assert.equal(finalizedUpload.body.data.quarantine.requiredBeforeProcessing, true);
-  assert.equal(finalizedUpload.body.data.file.sizeBytes, 1024);
+  assert.equal(finalizedUpload.body.data.file.sizeBytes, uploadBytes.length);
   assert.equal(finalizedUpload.body.data.file.hashVerification, 'pending_scan');
   assert.equal(finalizedUpload.body.data.storage.provider, 'azure_blob');
   assert.ok(finalizedUpload.body.data.storage.etag);
   assert.equal(finalizedUpload.body.meta.byteTransportConfigured, true);
+
+  const scannedUpload = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/${uploadIntent.body.data.id}/scan`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(201);
+
+  assert.equal(scannedUpload.body.data.status, 'clean');
+  assert.equal(scannedUpload.body.data.malwareStatus, 'clean');
+  assert.equal(scannedUpload.body.data.actualSha256, uploadSha256);
+  assert.equal(scannedUpload.body.data.sizeBytes, uploadBytes.length);
+  assert.equal(scannedUpload.body.data.signature, null);
+  assert.equal(scannedUpload.body.data.replayed, false);
+  assert.equal(scannedUpload.body.meta.malwareScannerConfigured, true);
+
+  const scanReplay = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/${uploadIntent.body.data.id}/scan`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(201);
+
+  assert.equal(scanReplay.body.data.replayed, true);
+  assert.equal(scanReplay.body.data.status, 'clean');
+  assert.equal(scanReplay.body.data.actualSha256, uploadSha256);
+
+  const eicarBytes = Buffer.from([
+    'X5O!P%@AP[4',
+    '\\PZX54(P^)7CC)7}$EICAR-',
+    'STANDARD-ANTIVIRUS-TEST-FILE!$H+H*',
+  ].join(''), 'ascii');
+  assert.equal(eicarBytes.length, 68);
+  const eicarSha256 = createHash('sha256').update(eicarBytes).digest('hex');
+
+  const infectedIntent = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/intents`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      fileName: 'scanner-check.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: eicarBytes.length,
+      documentType: 'other',
+      sha256: eicarSha256,
+    })
+    .expect(201);
+
+  const infectedPut = await fetch(infectedIntent.body.data.storage.uploadUrl, {
+    method: 'PUT',
+    headers: infectedIntent.body.data.storage.requiredHeaders,
+    body: eicarBytes,
+  });
+  assert.equal(infectedPut.status, 201);
+
+  await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/${infectedIntent.body.data.id}/finalize`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(201);
+
+  const malwareRejected = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/${infectedIntent.body.data.id}/scan`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(409);
+
+  assert.equal(malwareRejected.body.error.code, 'MALWARE_DETECTED');
+  assert.ok(malwareRejected.body.error.details.signature);
 
   const uploads = await request(app.getHttpServer())
     .get(`/v1/households/${householdId}/uploads`)
     .set('Authorization', `Bearer ${token}`)
     .expect(200);
 
-  assert.ok(uploads.body.data.some((item: { id: string }) => item.id === uploadIntent.body.data.id));
+  const cleanUpload = uploads.body.data.find(
+    (item: { id: string }) => item.id === uploadIntent.body.data.id,
+  );
+  assert.ok(cleanUpload);
+  assert.equal(cleanUpload.quarantine.status, 'clean');
+  assert.equal(cleanUpload.quarantine.malwareStatus, 'clean');
+  assert.equal(cleanUpload.file.actualSha256, uploadSha256);
+
+  const infectedUpload = uploads.body.data.find(
+    (item: { id: string }) => item.id === infectedIntent.body.data.id,
+  );
+  assert.ok(infectedUpload);
+  assert.equal(infectedUpload.quarantine.status, 'rejected');
+  assert.equal(infectedUpload.quarantine.malwareStatus, 'infected');
+  assert.equal(infectedUpload.file.actualSha256, eicarSha256);
 
   const invalidMime = await request(app.getHttpServer())
     .post(`/v1/households/${householdId}/uploads/intents`)
