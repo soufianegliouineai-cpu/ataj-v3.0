@@ -672,10 +672,15 @@ test('authenticated HTTP flow creates household and persists protection graph', 
     .set('Authorization', `Bearer ${token}`)
     .expect(200);
 
-  assert.equal(homeAfterCompletion.body.data.nextAction, null);
-  assert.equal(homeAfterCompletion.body.data.upcoming.length, 0);
+  assert.equal(
+    homeAfterCompletion.body.data.nextAction.taskId,
+    confirmedExpiry.body.data.protection.taskId,
+  );
+  assert.equal(homeAfterCompletion.body.data.nextAction.recommendedActionAt, '2030-10-02');
+  assert.ok(homeAfterCompletion.body.data.upcoming.length >= 1);
   assert.equal(homeAfterCompletion.body.data.counts.completedObligations, 1);
-  assert.equal(homeAfterCompletion.body.data.status.state, 'calm');
+  assert.ok(homeAfterCompletion.body.data.counts.activeObligations >= 1);
+  assert.equal(homeAfterCompletion.body.data.status.state, 'upcoming');
 
   const outsiderToken = await signToken(outsiderId);
   const denied = await request(app.getHttpServer())
