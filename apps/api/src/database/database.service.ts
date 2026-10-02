@@ -55,8 +55,9 @@ export class DatabaseService implements OnModuleDestroy {
 
     try {
       await client.query('begin');
+      await client.query('set local role authenticated');
       await client.query(
-        "select set_config('lifeos.user_id', $1, true), set_config('statement_timeout', $2, true)",
+        "select set_config('request.jwt.claim.sub', $1, true), set_config('statement_timeout', $2, true)",
         [userId, process.env.DATABASE_STATEMENT_TIMEOUT_MS ?? '5000'],
       );
 
