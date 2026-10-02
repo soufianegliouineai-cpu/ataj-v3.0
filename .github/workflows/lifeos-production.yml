@@ -79,10 +79,27 @@ jobs:
           psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lifeos_ci -f database/tests/ingestion_pipeline.sql
           psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lifeos_ci -f database/tests/extraction_provenance.sql
           psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lifeos_ci -f database/tests/integration_fixture.sql
-      - name: Verify NestJS PostgreSQL persistence integration
+      - name: Start pinned Azurite Blob emulator
+        run: |
+          docker run -d --name lifeos-azurite -p 10000:10000 \
+            mcr.microsoft.com/azure-storage/azurite:3.37.0 \
+            azurite-blob --blobHost 0.0.0.0 --blobPort 10000 --silent
+          for attempt in $(seq 1 30); do
+            if curl --silent --output /dev/null http://127.0.0.1:10000/devstoreaccount1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs lifeos-azurite
+          exit 1
+      - name: Verify NestJS PostgreSQL + Azure Blob persistence integration
         env:
           DATABASE_URL: postgresql://lifeos_app:lifeos_ci_password@127.0.0.1:5432/lifeos_ci
           DATABASE_SSL: disable
+          OBJECT_STORAGE_PROVIDER: azure_blob
+          AZURE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+          AZURE_STORAGE_CONTAINER: lifeos-ci-documents
+          AZURE_STORAGE_AUTO_CREATE_CONTAINER: "true"
         run: npm run test:integration --prefix apps/api
       - name: Verify live production API
         run: |
