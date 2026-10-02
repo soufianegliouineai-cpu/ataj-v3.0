@@ -92,7 +92,29 @@ jobs:
           done
           docker logs lifeos-azurite
           exit 1
-      - name: Verify NestJS PostgreSQL + Azure Blob persistence integration
+      - name: Start pinned ClamAV daemon
+        run: |
+          docker run -d --name lifeos-clamav -p 3310:3310 \
+            -e CLAMAV_NO_FRESHCLAMD=true \
+            -e CLAMD_STARTUP_TIMEOUT=120 \
+            clamav/clamav-debian:1.5.4
+          python - <<'PY'
+          import socket, time, sys
+          for attempt in range(120):
+              try:
+                  with socket.create_connection(('127.0.0.1', 3310), timeout=2) as s:
+                      s.sendall(b'zPING\0')
+                      data=s.recv(64)
+                      if b'PONG' in data:
+                          print('ClamAV clamd ready')
+                          sys.exit(0)
+              except OSError:
+                  pass
+              time.sleep(2)
+          print('ClamAV did not become ready')
+          sys.exit(1)
+          PY
+      - name: Verify NestJS PostgreSQL + Azure Blob + ClamAV integration
         env:
           DATABASE_URL: postgresql://lifeos_app:lifeos_ci_password@127.0.0.1:5432/lifeos_ci
           DATABASE_SSL: disable
@@ -100,6 +122,11 @@ jobs:
           AZURE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
           AZURE_STORAGE_CONTAINER: lifeos-ci-documents
           AZURE_STORAGE_AUTO_CREATE_CONTAINER: "true"
+          MALWARE_SCANNER_PROVIDER: clamav
+          CLAMAV_HOST: 127.0.0.1
+          CLAMAV_PORT: "3310"
+          CLAMAV_TIMEOUT_MS: "60000"
+          MALWARE_SCAN_MAX_BYTES: "26214400"
         run: npm run test:integration --prefix apps/api
       - name: Verify live production API
         run: |
