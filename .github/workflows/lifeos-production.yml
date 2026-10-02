@@ -42,6 +42,23 @@ jobs:
         run: npm ci --prefix apps/api --ignore-scripts --no-audit --no-fund
       - name: Verify NestJS API
         run: npm run verify --prefix apps/api
+      - name: Build NestJS production container
+        run: docker build -t lifeos-api-ci apps/api
+      - name: Boot and probe NestJS production container
+        run: |
+          docker run -d --name lifeos-api-ci -p 3000:3000 lifeos-api-ci
+          cleanup() { docker rm -f lifeos-api-ci >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/v1/health > /tmp/lifeos-health.json; then
+              cat /tmp/lifeos-health.json
+              node -e "const fs=require('fs');const h=JSON.parse(fs.readFileSync('/tmp/lifeos-health.json','utf8'));if(!h.ok||h.runtime!=='nestjs'||h.version!=='0.3.0')process.exit(1)"
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs lifeos-api-ci
+          exit 1
       - name: Install PostgreSQL client
         run: |
           if ! command -v psql >/dev/null 2>&1; then
