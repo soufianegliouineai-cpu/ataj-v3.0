@@ -1,0 +1,209 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LifeOS AI Nest API",
+    "version": "0.3.0",
+    "description": "Provider-neutral NestJS API target. Persistent writes require verified OIDC JWTs and PostgreSQL RLS."
+  },
+  "servers": [
+    {
+      "url": "https://api.lifeos.ai/v1"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Service health"
+          }
+        }
+      }
+    },
+    "/readiness": {
+      "get": {
+        "operationId": "getReadiness",
+        "responses": {
+          "200": {
+            "description": "Runtime capability and dependency readiness"
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "getVersion",
+        "responses": {
+          "200": {
+            "description": "API version"
+          }
+        }
+      }
+    },
+    "/document-types": {
+      "get": {
+        "operationId": "listDocumentTypes",
+        "responses": {
+          "200": {
+            "description": "Supported document types"
+          }
+        }
+      }
+    },
+    "/protection/expiry": {
+      "post": {
+        "operationId": "calculateExpiryProtection",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpiryProtectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stateless expiry protection calculated"
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/households/{householdId}/protection/expiry": {
+      "post": {
+        "operationId": "persistExpiryProtection",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "householdId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersistExpiryProtectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Protection graph persisted atomically"
+          },
+          "400": {
+            "description": "Validation or idempotency error"
+          },
+          "401": {
+            "description": "Bearer token missing or invalid"
+          },
+          "403": {
+            "description": "RLS denied access to household"
+          },
+          "503": {
+            "description": "OIDC or persistence dependency not configured"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "ExpiryProtectionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "documentType",
+          "expiryDate"
+        ],
+        "properties": {
+          "documentType": {
+            "type": "string",
+            "enum": [
+              "passport",
+              "identity_card",
+              "driving_license",
+              "insurance",
+              "visa",
+              "residence_permit",
+              "vehicle_registration",
+              "contract",
+              "certificate",
+              "other"
+            ]
+          },
+          "expiryDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "leadDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365,
+            "default": 90
+          }
+        }
+      },
+      "PersistExpiryProtectionRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ExpiryProtectionRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "personId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
