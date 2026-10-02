@@ -31,6 +31,9 @@ let app: INestApplication;
 let server: Server;
 let privateKey: CryptoKey;
 let jwk: JWK;
+let integrationBaseUrl = '';
+let ocrPollCount = 0;
+let lastOcrRequestSha256: string | null = null;
 
 before(async () => {
   if (!enabled) return;
@@ -42,27 +45,114 @@ before(async () => {
   jwk.alg = 'RS256';
   jwk.use = 'sig';
 
-  server = createServer((req, res) => {
-    if (req.url !== '/jwks') {
-      res.writeHead(404).end();
+  server = createServer(async (req, res) => {
+    const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+
+    if (url.pathname === '/jwks') {
+      res.writeHead(200, {
+        'content-type': 'application/json',
+        'cache-control': 'public, max-age=60',
+      });
+      res.end(JSON.stringify({ keys: [jwk] }));
       return;
     }
 
-    res.writeHead(200, {
-      'content-type': 'application/json',
-      'cache-control': 'public, max-age=60',
-    });
-    res.end(JSON.stringify({ keys: [jwk] }));
+    if (
+      req.method === 'POST'
+      && url.pathname === '/documentintelligence/documentModels/prebuilt-idDocument:analyze'
+      && url.searchParams.get('api-version') === '2024-11-30'
+    ) {
+      if (req.headers['ocp-apim-subscription-key'] !== 'integration-ocr-key') {
+        res.writeHead(401, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: { code: 'Unauthorized' } }));
+        return;
+      }
+
+      const chunks: Buffer[] = [];
+      for await (const value of req) {
+        chunks.push(Buffer.isBuffer(value) ? value : Buffer.from(value));
+      }
+      const body = Buffer.concat(chunks);
+      lastOcrRequestSha256 = createHash('sha256').update(body).digest('hex');
+      ocrPollCount = 0;
+
+      res.writeHead(202, {
+        'operation-location': `${integrationBaseUrl}/ocr/operations/integration-1`,
+      });
+      res.end();
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/ocr/operations/integration-1') {
+      if (req.headers['ocp-apim-subscription-key'] !== 'integration-ocr-key') {
+        res.writeHead(401, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: { code: 'Unauthorized' } }));
+        return;
+      }
+
+      ocrPollCount += 1;
+      res.writeHead(200, { 'content-type': 'application/json' });
+
+      if (ocrPollCount === 1) {
+        res.end(JSON.stringify({ status: 'running' }));
+        return;
+      }
+
+      res.end(JSON.stringify({
+        status: 'succeeded',
+        analyzeResult: {
+          apiVersion: '2024-11-30',
+          modelId: 'prebuilt-idDocument',
+          pages: [{ pageNumber: 1 }],
+          documents: [{
+            fields: {
+              DateOfExpiration: {
+                type: 'date',
+                content: '2030-12-31',
+                valueDate: '2030-12-31',
+                confidence: 0.9876,
+                boundingRegions: [{
+                  pageNumber: 1,
+                  polygon: [0.61, 0.72, 0.83, 0.72, 0.83, 0.76, 0.61, 0.76],
+                }],
+              },
+              DocumentNumber: {
+                type: 'string',
+                content: 'MA123456',
+                valueString: 'MA123456',
+                confidence: 0.9654,
+                boundingRegions: [{
+                  pageNumber: 1,
+                  polygon: [0.15, 0.25, 0.31, 0.25, 0.31, 0.29, 0.15, 0.29],
+                }],
+              },
+            },
+          }],
+        },
+      }));
+      return;
+    }
+
+    res.writeHead(404).end();
   });
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address() as AddressInfo;
+  integrationBaseUrl = `http://127.0.0.1:${address.port}`;
 
   process.env.OIDC_ISSUER = issuer;
   process.env.OIDC_AUDIENCE = audience;
-  process.env.OIDC_JWKS_URL = `http://127.0.0.1:${address.port}/jwks`;
+  process.env.OIDC_JWKS_URL = `${integrationBaseUrl}/jwks`;
   process.env.OIDC_ALLOWED_ALGS = 'RS256';
   process.env.OIDC_USER_ID_CLAIM = 'sub';
+
+  process.env.OCR_PROVIDER = 'azure_document_intelligence';
+  process.env.OCR_AUTH_MODE = 'api_key';
+  process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = integrationBaseUrl;
+  process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY = 'integration-ocr-key';
+  process.env.OCR_ALLOW_HTTP = 'true';
+  process.env.OCR_POLL_INTERVAL_MS = '10';
+  process.env.OCR_TIMEOUT_MS = '5000';
 
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   app = moduleRef.createNestApplication();
@@ -83,6 +173,13 @@ after(async () => {
   delete process.env.OIDC_JWKS_URL;
   delete process.env.OIDC_ALLOWED_ALGS;
   delete process.env.OIDC_USER_ID_CLAIM;
+  delete process.env.OCR_PROVIDER;
+  delete process.env.OCR_AUTH_MODE;
+  delete process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
+  delete process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY;
+  delete process.env.OCR_ALLOW_HTTP;
+  delete process.env.OCR_POLL_INTERVAL_MS;
+  delete process.env.OCR_TIMEOUT_MS;
 });
 
 async function signToken(userId: string) {
