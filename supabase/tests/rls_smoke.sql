@@ -147,6 +147,21 @@ begin
   end;
 end $$;
 
+do $
+begin
+  begin
+    insert into public.document_facts(
+      document_id,field_key,value_json,normalized_value,confidence,origin,review_status,provenance
+    ) values (
+      '30000000-0000-0000-0000-000000000001','issuer','"blocked"'::jsonb,'blocked',1,
+      'user_confirmed','confirmed','{}'::jsonb
+    );
+    raise exception 'read-only recipient inserted a document fact';
+  exception when insufficient_privilege then
+    null;
+  end;
+end $;
+
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',false);
 update public.document_shares
 set can_edit=true
@@ -158,12 +173,33 @@ update public.documents
 set title='Shared Passport'
 where id='30000000-0000-0000-0000-000000000001';
 
-do $$
+do $
 begin
   if (select title from public.documents where id='30000000-0000-0000-0000-000000000001') <> 'Shared Passport' then
     raise exception 'edit-enabled share could not edit allowed document fields';
   end if;
-end $$;
+end $;
+
+insert into public.document_facts(
+  document_id,field_key,value_json,normalized_value,confidence,origin,review_status,provenance
+) values (
+  '30000000-0000-0000-0000-000000000001','issuer','"allowed"'::jsonb,'allowed',1,
+  'user_confirmed','confirmed','{}'::jsonb
+);
+
+insert into public.idempotency_records(user_id,key,request_hash)
+values (
+  '00000000-0000-0000-0000-000000000002',
+  'member-key',
+  repeat('a',64)
+);
+
+do $
+begin
+  if (select count(*) from public.idempotency_records where key='member-key') <> 1 then
+    raise exception 'user cannot read own idempotency record';
+  end if;
+end $;
 
 insert into public.tasks(
   id,household_id,created_by,assigned_to_user_id,title,status,due_at
@@ -204,6 +240,9 @@ begin
   end if;
   if (select count(*) from public.tasks where id='70000000-0000-0000-0000-000000000001') <> 0 then
     raise exception 'unrelated user can read task';
+  end if;
+  if (select count(*) from public.idempotency_records where key='member-key') <> 0 then
+    raise exception 'unrelated user can read idempotency record';
   end if;
 end $$;
 
