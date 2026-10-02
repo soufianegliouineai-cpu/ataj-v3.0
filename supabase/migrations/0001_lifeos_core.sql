@@ -120,6 +120,17 @@ create table public.tasks (
   created_at timestamptz not null default now()
 );
 
+create table public.idempotency_records (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  key text not null check (char_length(key) between 1 and 200),
+  request_hash text not null check (char_length(request_hash) = 64),
+  response_json jsonb,
+  status_code integer check (status_code is null or status_code between 100 and 599),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, key)
+);
+
 create table public.audit_logs (
   id bigint generated always as identity primary key,
   household_id uuid references public.households(id) on delete set null,
@@ -293,6 +304,7 @@ alter table public.obligations enable row level security;
 alter table public.deadlines enable row level security;
 alter table public.tasks enable row level security;
 alter table public.audit_logs enable row level security;
+alter table public.idempotency_records enable row level security;
 
 create policy "Users read their own profile"
 on public.profiles for select to authenticated
@@ -454,6 +466,47 @@ create policy "Task creators delete tasks"
 on public.tasks for delete to authenticated
 using (created_by = (select auth.uid()));
 
+
+create policy "Document editors create facts"
+on public.document_facts for insert to authenticated
+with check (private.can_edit_document(document_id));
+
+create policy "Users create document-backed obligations"
+on public.obligations for insert to authenticated
+with check (
+  created_by = (select auth.uid())
+  and private.is_household_member(household_id)
+  and source_document_id is not null
+  and private.can_edit_document(source_document_id)
+);
+
+create policy "Users create deadlines for readable obligations"
+on public.deadlines for insert to authenticated
+with check (
+  private.is_household_member(household_id)
+  and private.can_read_obligation(obligation_id)
+);
+
+create policy "Actors create their own audit records"
+on public.audit_logs for insert to authenticated
+with check (
+  actor_user_id = (select auth.uid())
+  and (household_id is null or private.is_household_member(household_id))
+);
+
+create policy "Users read their idempotency records"
+on public.idempotency_records for select to authenticated
+using (user_id = (select auth.uid()));
+
+create policy "Users create their idempotency records"
+on public.idempotency_records for insert to authenticated
+with check (user_id = (select auth.uid()));
+
+create policy "Users update their idempotency records"
+on public.idempotency_records for update to authenticated
+using (user_id = (select auth.uid()))
+with check (user_id = (select auth.uid()));
+
 grant usage on schema public to authenticated;
 grant select, insert, update on public.profiles to authenticated;
 grant select, insert, update, delete on public.households to authenticated;
@@ -462,8 +515,10 @@ grant select, insert, update, delete on public.people to authenticated;
 grant select, insert, delete on public.documents to authenticated;
 grant update (title, issuer, jurisdiction, status, sensitivity) on public.documents to authenticated;
 grant select, insert, update, delete on public.document_shares to authenticated;
-grant select on public.document_facts to authenticated;
-grant select on public.obligations to authenticated;
-grant select on public.deadlines to authenticated;
+grant select, insert on public.document_facts to authenticated;
+grant select, insert on public.obligations to authenticated;
+grant select, insert on public.deadlines to authenticated;
 grant select, insert, delete on public.tasks to authenticated;
 grant update (status, completed_at) on public.tasks to authenticated;
+grant insert on public.audit_logs to authenticated;
+grant select, insert, update on public.idempotency_records to authenticated;
