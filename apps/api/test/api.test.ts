@@ -32,6 +32,7 @@ test('GET /v1/health exposes NestJS parity runtime', async () => {
 test('GET /v1/document-types exposes supported types', async () => {
   const response = await request(app.getHttpServer()).get('/v1/document-types').expect(200);
   assert.ok(response.body.data.includes('passport'));
+  assert.ok(response.body.data.includes('identity_card'));
   assert.ok(response.body.data.includes('driving_license'));
 });
 
@@ -87,4 +88,13 @@ test('idempotency keys longer than 200 characters are rejected', async () => {
     .expect(400);
 
   assert.equal(response.body.error.code, 'INVALID_IDEMPOTENCY_KEY');
+});
+
+
+test('GET /v1/readiness reports disabled dependencies truthfully', async () => {
+  const response = await request(app.getHttpServer()).get('/v1/readiness').expect(200);
+  assert.equal(response.body.capabilities.authentication, 'not_configured');
+  assert.equal(response.body.capabilities.persistence, 'not_configured');
+  assert.equal(response.body.capabilities.persistentProtection, 'not_configured');
+  assert.equal(response.body.dependencies.oidc.configured, false);
 });
