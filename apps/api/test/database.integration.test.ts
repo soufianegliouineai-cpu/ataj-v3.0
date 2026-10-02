@@ -191,8 +191,9 @@ test('RLS prevents an outsider from persisting into another household', { skip: 
       result,
     }),
     (error: unknown) => {
-      const value = error as { code?: string };
-      return value.code === '42501';
+      const value = error as { getResponse?: () => unknown };
+      const response = value.getResponse?.() as { code?: string } | undefined;
+      return response?.code === 'HOUSEHOLD_NOT_FOUND';
     },
   );
 
