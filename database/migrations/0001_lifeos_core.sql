@@ -315,13 +315,39 @@ create policy people_creator_or_owner_update on public.people for update
   using (created_by = private.current_user_id() or private.is_household_owner(household_id))
   with check (created_by = private.current_user_id() or private.is_household_owner(household_id));
 
-create policy documents_authorized_read on public.documents for select using (private.can_read_document(id));
+create policy documents_authorized_read on public.documents for select using (
+  owner_user_id = private.current_user_id()
+  or exists (
+    select 1
+    from public.document_shares s
+    where s.document_id = id
+      and s.user_id = private.current_user_id()
+  )
+);
 create policy documents_owner_insert on public.documents for insert with check (
   owner_user_id = private.current_user_id() and private.is_household_member(household_id)
 );
 create policy documents_authorized_edit on public.documents for update
-  using (private.can_edit_document(id))
-  with check (private.can_edit_document(id));
+  using (
+    owner_user_id = private.current_user_id()
+    or exists (
+      select 1
+      from public.document_shares s
+      where s.document_id = id
+        and s.user_id = private.current_user_id()
+        and s.can_edit
+    )
+  )
+  with check (
+    owner_user_id = private.current_user_id()
+    or exists (
+      select 1
+      from public.document_shares s
+      where s.document_id = id
+        and s.user_id = private.current_user_id()
+        and s.can_edit
+    )
+  );
 create policy documents_owner_delete on public.documents for delete using (owner_user_id = private.current_user_id());
 
 create policy document_shares_authorized_read on public.document_shares for select using (
