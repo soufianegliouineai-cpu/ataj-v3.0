@@ -299,9 +299,42 @@ create policy app_users_self_read on public.app_users for select using (id = pri
 create policy app_users_self_insert on public.app_users for insert with check (id = private.current_user_id());
 create policy app_users_self_update on public.app_users for update using (id = private.current_user_id()) with check (id = private.current_user_id());
 
-create policy households_member_read on public.households for select using (private.is_household_member(id));
-create policy households_owner_insert on public.households for insert with check (created_by = private.current_user_id());
-create policy households_owner_update on public.households for update using (private.is_household_owner(id)) with check (private.is_household_owner(id));
+create policy households_member_read on public.households for select using (
+  created_by = private.current_user_id()
+  or exists (
+    select 1
+    from public.household_members hm
+    where hm.household_id = id
+      and hm.user_id = private.current_user_id()
+      and hm.status = 'active'
+  )
+);
+create policy households_owner_insert on public.households for insert with check (
+  created_by = private.current_user_id()
+);
+create policy households_owner_update on public.households for update
+  using (
+    created_by = private.current_user_id()
+    or exists (
+      select 1
+      from public.household_members hm
+      where hm.household_id = id
+        and hm.user_id = private.current_user_id()
+        and hm.status = 'active'
+        and hm.role = 'owner'
+    )
+  )
+  with check (
+    created_by = private.current_user_id()
+    or exists (
+      select 1
+      from public.household_members hm
+      where hm.household_id = id
+        and hm.user_id = private.current_user_id()
+        and hm.status = 'active'
+        and hm.role = 'owner'
+    )
+  );
 
 create policy household_members_member_read on public.household_members for select using (private.is_household_member(household_id));
 create policy household_members_owner_write on public.household_members for all
