@@ -1,9 +1,6 @@
 name: LifeOS Pages
 
 on:
-  push:
-    branches:
-      - lifeos-production-bootstrap
   workflow_dispatch:
 
 permissions:
