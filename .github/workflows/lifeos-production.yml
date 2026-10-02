@@ -77,6 +77,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lifeos_ci -f database/tests/bootstrap_role.sql
           psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lifeos_ci -f database/tests/rls_smoke.sql
           psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lifeos_ci -f database/tests/ingestion_pipeline.sql
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lifeos_ci -f database/tests/extraction_provenance.sql
           psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lifeos_ci -f database/tests/integration_fixture.sql
       - name: Verify NestJS PostgreSQL persistence integration
         env:
