@@ -116,10 +116,35 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.equal(created.body.data.role, 'owner');
   assert.equal(created.body.data.homeJurisdiction, 'MA');
 
+  const person = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/people`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      displayName: 'Dependent Person',
+      relationship: 'child',
+      dateOfBirth: '2018-05-14',
+      nationality: 'MA',
+      jurisdiction: 'MA',
+    })
+    .expect(201);
+
+  const personId = person.body.data.id as string;
+  assert.match(personId, /^[0-9a-f-]{36}$/i);
+  assert.equal(person.body.data.householdId, householdId);
+  assert.equal(person.body.data.relationship, 'child');
+
+  const people = await request(app.getHttpServer())
+    .get(`/v1/households/${householdId}/people`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  assert.ok(people.body.data.some((item: { id: string }) => item.id === personId));
+
   const body = {
     documentType: 'passport',
     expiryDate: '2028-12-31',
     leadDays: 90,
+    personId,
   };
 
   const first = await request(app.getHttpServer())
@@ -155,6 +180,22 @@ test('authenticated HTTP flow creates household and persists protection graph', 
     .expect(403);
 
   assert.equal(denied.body.error.code, 'ACCESS_DENIED');
+
+  await request(app.getHttpServer())
+    .get(`/v1/households/${householdId}/people`)
+    .set('Authorization', `Bearer ${outsiderToken}`)
+    .expect(200)
+    .expect((response) => {
+      assert.deepEqual(response.body.data, []);
+    });
+
+  const deniedPerson = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/people`)
+    .set('Authorization', `Bearer ${outsiderToken}`)
+    .send({ displayName: 'Unauthorized Person', relationship: 'other' })
+    .expect(403);
+
+  assert.equal(deniedPerson.body.error.code, 'ACCESS_DENIED');
 });
 
 test('persistent HTTP write requires idempotency key after authentication', { skip: !enabled }, async () => {
