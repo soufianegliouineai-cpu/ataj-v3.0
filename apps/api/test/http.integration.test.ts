@@ -206,6 +206,10 @@ test('authenticated HTTP flow creates household and persists protection graph', 
 
   assert.equal(readiness.body.capabilities.authentication, 'ready');
   assert.equal(readiness.body.capabilities.persistence, 'ready');
+  assert.equal(readiness.body.capabilities.byteTransport, 'ready');
+  assert.equal(readiness.body.capabilities.malwareScanning, 'ready');
+  assert.equal(readiness.body.capabilities.ocrExtraction, 'ready');
+  assert.equal(readiness.body.capabilities.documentProcessing, 'ready');
 
   const created = await request(app.getHttpServer())
     .post('/v1/households')
@@ -329,6 +333,69 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.equal(scanReplay.body.data.status, 'clean');
   assert.equal(scanReplay.body.data.actualSha256, uploadSha256);
 
+  const processed = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/${uploadIntent.body.data.id}/process`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(201);
+
+  assert.equal(processed.body.data.status, 'succeeded');
+  assert.equal(processed.body.data.replayed, false);
+  assert.equal(processed.body.data.sourceIntegrity.sha256, uploadSha256);
+  assert.equal(processed.body.data.sourceIntegrity.sizeBytes, uploadBytes.length);
+  assert.equal(processed.body.data.sourceIntegrity.reverifiedBeforeOcr, true);
+  assert.equal(processed.body.data.engine.provider, 'azure_document_intelligence');
+  assert.equal(processed.body.data.engine.modelName, 'prebuilt-idDocument');
+  assert.equal(processed.body.data.engine.apiVersion, '2024-11-30');
+  assert.equal(processed.body.data.fieldCount, 2);
+  assert.equal(lastOcrRequestSha256, uploadSha256);
+  assert.ok(ocrPollCount >= 2);
+
+  const extractionRunId = processed.body.data.extractionRunId as string;
+  assert.match(extractionRunId, /^[0-9a-f-]{36}$/i);
+
+  const extraction = await request(app.getHttpServer())
+    .get(`/v1/households/${householdId}/extractions/${extractionRunId}`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  assert.equal(extraction.body.data.status, 'succeeded');
+  assert.equal(extraction.body.data.sourceIntegrity.sha256, uploadSha256);
+  assert.equal(extraction.body.data.engine.provider, 'azure_document_intelligence');
+  assert.equal(extraction.body.data.engine.modelName, 'prebuilt-idDocument');
+  assert.equal(extraction.body.data.pageCount, 1);
+
+  const expiryField = extraction.body.data.fields.find(
+    (field: { key: string }) => field.key === 'expiry_date',
+  );
+  assert.ok(expiryField);
+  assert.equal(expiryField.value, '2030-12-31');
+  assert.equal(expiryField.normalizedValue, '2030-12-31');
+  assert.equal(expiryField.trustClass, 'AI_EXTRACTED');
+  assert.equal(expiryField.reviewStatus, 'pending');
+  assert.equal(expiryField.provenance.page, 1);
+  assert.ok(expiryField.provenance.sourceTextHash);
+
+  const confirmedExpiry = await request(app.getHttpServer())
+    .post(
+      `/v1/households/${householdId}/extractions/${extractionRunId}/fields/${expiryField.id}/confirm`,
+    )
+    .set('Authorization', `Bearer ${token}`)
+    .expect(201);
+
+  assert.equal(confirmedExpiry.body.data.trustClass, 'USER_CONFIRMED');
+  assert.equal(confirmedExpiry.body.data.fieldKey, 'expiry_date');
+  assert.equal(confirmedExpiry.body.data.normalizedValue, '2030-12-31');
+  assert.equal(confirmedExpiry.body.data.provenance.sourceOrigin, 'ai_extracted');
+  assert.equal(confirmedExpiry.body.data.provenance.sourceSha256, uploadSha256);
+
+  const processingReplay = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/${uploadIntent.body.data.id}/process`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(201);
+
+  assert.equal(processingReplay.body.data.replayed, true);
+  assert.equal(processingReplay.body.data.extractionRunId, extractionRunId);
+
   const eicarBytes = Buffer.from([
     'X5O!P%@AP[4',
     '\\PZX54(P^)7CC)7}$EICAR-',
@@ -378,7 +445,7 @@ test('authenticated HTTP flow creates household and persists protection graph', 
     (item: { id: string }) => item.id === uploadIntent.body.data.id,
   );
   assert.ok(cleanUpload);
-  assert.equal(cleanUpload.quarantine.status, 'clean');
+  assert.equal(cleanUpload.quarantine.status, 'processed');
   assert.equal(cleanUpload.quarantine.malwareStatus, 'clean');
   assert.equal(cleanUpload.file.actualSha256, uploadSha256);
 
