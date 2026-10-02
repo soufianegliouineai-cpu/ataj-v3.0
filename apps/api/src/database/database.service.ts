@@ -51,14 +51,28 @@ export class DatabaseService implements OnModuleDestroy {
       throw new Error('DATABASE_URL is not configured');
     }
 
-    const client = await this.pool.connect();
+    let client: PoolClient;
+    try {
+      client = await this.pool.connect();
+    } catch (error) {
+      throw stageError('connect', error);
+    }
 
     try {
-      await client.query('begin');
-      await client.query(
-        "select set_config('lifeos.user_id', $1, true), set_config('statement_timeout', $2, true)",
-        [userId, process.env.DATABASE_STATEMENT_TIMEOUT_MS ?? '5000'],
-      );
+      try {
+        await client.query('begin');
+      } catch (error) {
+        throw stageError('begin', error);
+      }
+
+      try {
+        await client.query(
+          "select set_config('lifeos.user_id', $1, true), set_config('statement_timeout', $2, true)",
+          [userId, process.env.DATABASE_STATEMENT_TIMEOUT_MS ?? '5000'],
+        );
+      } catch (error) {
+        throw stageError('context', error);
+      }
 
       const result = await operation(client);
       await client.query('commit');
@@ -74,4 +88,16 @@ export class DatabaseService implements OnModuleDestroy {
   async onModuleDestroy() {
     await this.pool?.end();
   }
+}
+
+function stageError(stage: string, error: unknown) {
+  if (error instanceof Error) {
+    const wrapped = new Error(`Database transaction failed during ${stage}: ${error.message}`, { cause: error });
+    const code = (error as Error & { code?: string }).code;
+    if (code) {
+      (wrapped as Error & { code?: string }).code = code;
+    }
+    return wrapped;
+  }
+  return new Error(`Database transaction failed during ${stage}`);
 }
