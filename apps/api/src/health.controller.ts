@@ -2,6 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { LIFEOS_API_VERSION } from './constants.js';
 import { OidcAuthService } from './auth/oidc-auth.service.js';
 import { DatabaseService } from './database/database.service.js';
+import { DocumentIntelligenceService } from './ocr/document-intelligence.service.js';
 import { MalwareScannerService } from './scanning/malware-scanner.service.js';
 import { ObjectStorageService } from './storage/object-storage.service.js';
 
@@ -12,6 +13,7 @@ export class HealthController {
     private readonly auth: OidcAuthService,
     private readonly storage: ObjectStorageService,
     private readonly scanner: MalwareScannerService,
+    private readonly ocr: DocumentIntelligenceService,
   ) {}
 
   @Get('health')
@@ -52,7 +54,11 @@ export class HealthController {
         byteTransport: this.storage.configured ? 'ready' : 'not_configured',
         malwareScanning: this.scanner.configured ? 'ready' : 'not_configured',
         extractionReview: database.ok ? 'ready' : database.enabled ? 'degraded' : 'not_configured',
-        ocrExtraction: 'not_configured',
+        ocrExtraction: this.ocr.configured ? 'ready' : 'not_configured',
+        documentProcessing:
+          database.ok && this.storage.configured && this.scanner.configured && this.ocr.configured
+            ? 'ready'
+            : 'not_configured',
         jurisdictionRules: 'not_enabled',
       },
       dependencies: {
@@ -62,6 +68,7 @@ export class HealthController {
         },
         objectStorage: this.storage.capability,
         malwareScanner: this.scanner.capability,
+        documentIntelligence: this.ocr.capability,
       },
     };
   }
