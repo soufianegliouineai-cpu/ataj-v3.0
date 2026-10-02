@@ -44,6 +44,9 @@ export class HealthController {
           : this.auth.enabled && database.enabled
             ? 'degraded'
             : 'not_configured',
+        uploadMetadata: database.ok ? 'ready' : database.enabled ? 'degraded' : 'not_configured',
+        byteTransport: 'not_configured',
+        malwareScanning: 'not_configured',
         ocrExtraction: 'not_enabled',
         jurisdictionRules: 'not_enabled',
       },
