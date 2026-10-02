@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import type { SupportedDocumentType } from '../constants.js';
@@ -51,6 +51,22 @@ export class ProtectionRepository {
          on conflict (id) do nothing`,
         [input.userId],
       );
+
+      if (input.personId) {
+        const person = await client.query<{ id: string }>(
+          `select id
+           from public.people
+           where id = $1 and household_id = $2`,
+          [input.personId, input.householdId],
+        );
+
+        if (person.rowCount !== 1) {
+          throw new NotFoundException({
+            code: 'PERSON_NOT_FOUND',
+            message: 'The selected person is not available in this household.',
+          });
+        }
+      }
 
       const inserted = await client.query<{ key: string }>(
         `insert into public.idempotency_records(user_id, key, request_hash)
