@@ -25,3 +25,5 @@ grant select, insert on public.audit_logs to lifeos_app;
 
 grant select, insert, update, delete on public.document_uploads to lifeos_app;
 grant select, insert, update, delete on public.document_processing_jobs to lifeos_app;
+grant select, insert on public.document_extraction_candidates to lifeos_app;
+grant update (review_status, reviewed_at) on public.document_extraction_candidates to lifeos_app;
