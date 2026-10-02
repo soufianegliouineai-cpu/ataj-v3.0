@@ -143,7 +143,8 @@ export class UploadService {
           name: input.fileName.trim(),
           mimeType: input.mimeType,
           sizeBytes: input.sizeBytes,
-          sha256: input.sha256?.toLowerCase() ?? null,
+          declaredSha256: input.sha256?.toLowerCase() ?? null,
+          hashVerification: 'pending',
         },
         quarantine: {
           status: row.status,
@@ -218,7 +219,8 @@ export class UploadService {
           name: row.original_filename,
           mimeType: row.declared_mime_type,
           sizeBytes: Number(row.declared_size_bytes),
-          sha256: row.declared_sha256,
+          declaredSha256: row.declared_sha256,
+          hashVerification: row.actual_sha256 ? 'verified' : 'pending',
         },
         quarantine: {
           status: row.status,
