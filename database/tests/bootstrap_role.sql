@@ -22,3 +22,5 @@ grant update (status) on public.deadlines to lifeos_app;
 grant select, insert, update on public.tasks to lifeos_app;
 grant select, insert, update, delete on public.idempotency_records to lifeos_app;
 grant select, insert on public.audit_logs to lifeos_app;
+
+grant select, insert, update, delete on public.document_uploads to lifeos_app;
