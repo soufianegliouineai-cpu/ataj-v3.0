@@ -45,6 +45,13 @@ export class ProtectionRepository {
       .digest('hex');
 
     return this.database.withUserTransaction(input.userId, async (client) => {
+      await client.query(
+        `insert into public.app_users(id)
+         values ($1)
+         on conflict (id) do nothing`,
+        [input.userId],
+      );
+
       const inserted = await client.query<{ key: string }>(
         `insert into public.idempotency_records(user_id, key, request_hash)
          values ($1, $2, $3)
