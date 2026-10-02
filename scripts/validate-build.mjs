@@ -57,6 +57,20 @@ for (const [name, openapi] of [['edge', edgeOpenapi], ['nest', nestOpenapi]]) {
 if (!edgeOpenapi.paths?.['/v1/protection/expiry']?.post) failures.push('Edge OpenAPI missing POST /v1/protection/expiry');
 if (!edgeOpenapi.paths?.['/readiness']?.get) failures.push('Edge OpenAPI missing GET /readiness');
 
+const householdListPath = nestOpenapi.paths?.['/households']?.get;
+if (!householdListPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
+  failures.push('Nest OpenAPI missing authenticated household list');
+}
+const peoplePath = nestOpenapi.paths?.['/households/{householdId}/people'];
+if (!peoplePath?.get?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))
+  || !peoplePath?.post?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
+  failures.push('Nest OpenAPI household people routes must require bearerAuth');
+}
+const timelinePath = nestOpenapi.paths?.['/households/{householdId}/timeline']?.get;
+if (!timelinePath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
+  failures.push('Nest OpenAPI missing authenticated Life Timeline route');
+}
+
 const persistentPath = nestOpenapi.paths?.['/households/{householdId}/protection/expiry']?.post;
 if (!persistentPath) failures.push('Nest OpenAPI missing authenticated persistent expiry route');
 if (!persistentPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
