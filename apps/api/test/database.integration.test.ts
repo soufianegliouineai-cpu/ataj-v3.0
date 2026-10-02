@@ -90,14 +90,12 @@ test('PostgreSQL persistence creates the full protection graph atomically', { sk
   assert.ok(ids.taskId);
 
   const counts = await database.withUserTransaction(ownerId, async (client) => {
-    const [documents, facts, obligations, deadlines, tasks, audit] = await Promise.all([
-      client.query('select count(*)::int as count from public.documents where id=$1', [ids.documentId]),
-      client.query('select count(*)::int as count from public.document_facts where document_id=$1', [ids.documentId]),
-      client.query('select count(*)::int as count from public.obligations where id=$1', [ids.obligationId]),
-      client.query('select count(*)::int as count from public.deadlines where id=$1', [ids.deadlineId]),
-      client.query('select count(*)::int as count from public.tasks where id=$1', [ids.taskId]),
-      client.query("select count(*)::int as count from public.audit_logs where request_id='integration-atomic'"),
-    ]);
+    const documents = await client.query('select count(*)::int as count from public.documents where id=$1', [ids.documentId]);
+    const facts = await client.query('select count(*)::int as count from public.document_facts where document_id=$1', [ids.documentId]);
+    const obligations = await client.query('select count(*)::int as count from public.obligations where id=$1', [ids.obligationId]);
+    const deadlines = await client.query('select count(*)::int as count from public.deadlines where id=$1', [ids.deadlineId]);
+    const tasks = await client.query('select count(*)::int as count from public.tasks where id=$1', [ids.taskId]);
+    const audit = await client.query("select count(*)::int as count from public.audit_logs where request_id='integration-atomic'");
     return [documents, facts, obligations, deadlines, tasks, audit].map((item) => item.rows[0]?.count ?? 0);
   });
 
