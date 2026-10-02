@@ -71,6 +71,11 @@ if (!timelinePath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) 
   failures.push('Nest OpenAPI missing authenticated Life Timeline route');
 }
 
+const taskCompletePath = nestOpenapi.paths?.['/households/{householdId}/tasks/{taskId}/complete']?.post;
+if (!taskCompletePath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
+  failures.push('Nest OpenAPI missing authenticated task completion');
+}
+
 const persistentPath = nestOpenapi.paths?.['/households/{householdId}/protection/expiry']?.post;
 if (!persistentPath) failures.push('Nest OpenAPI missing authenticated persistent expiry route');
 if (!persistentPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
