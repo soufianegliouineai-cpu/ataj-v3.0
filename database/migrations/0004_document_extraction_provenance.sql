@@ -108,3 +108,46 @@ using (
       and r.owner_user_id = private.current_user_id()
   )
 );
+
+
+create policy document_extraction_runs_owner_insert
+on public.document_extraction_runs for insert
+with check (
+  owner_user_id = private.current_user_id()
+  and private.is_household_member(household_id)
+);
+
+create policy document_extraction_runs_owner_update
+on public.document_extraction_runs for update
+using (owner_user_id = private.current_user_id())
+with check (owner_user_id = private.current_user_id());
+
+create policy document_extracted_fields_owner_insert
+on public.document_extracted_fields for insert
+with check (
+  exists (
+    select 1
+    from public.document_extraction_runs r
+    where r.id = extraction_run_id
+      and r.owner_user_id = private.current_user_id()
+  )
+);
+
+create policy document_extracted_fields_owner_review
+on public.document_extracted_fields for update
+using (
+  exists (
+    select 1
+    from public.document_extraction_runs r
+    where r.id = extraction_run_id
+      and r.owner_user_id = private.current_user_id()
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.document_extraction_runs r
+    where r.id = extraction_run_id
+      and r.owner_user_id = private.current_user_id()
+  )
+);
