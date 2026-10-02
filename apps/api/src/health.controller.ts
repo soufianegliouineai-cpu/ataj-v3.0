@@ -37,8 +37,13 @@ export class HealthController {
         idempotency: 'ready',
         genericExpiryProtection: 'ready',
         postgresSchema: 'tested',
-        persistence: database.ok ? 'ready' : database.enabled ? 'degraded' : 'not_enabled',
-        authentication: this.auth.enabled ? 'ready' : 'not_enabled',
+        persistence: database.ok ? 'ready' : database.enabled ? 'degraded' : 'not_configured',
+        authentication: this.auth.enabled ? 'ready' : 'not_configured',
+        persistentProtection: this.auth.enabled && database.ok
+          ? 'ready'
+          : this.auth.enabled && database.enabled
+            ? 'degraded'
+            : 'not_configured',
         ocrExtraction: 'not_enabled',
         jurisdictionRules: 'not_enabled',
       },
