@@ -8,7 +8,7 @@ import { ProtectionModule } from './protection/protection.module.js';
 import { TimelineModule } from './timeline/timeline.module.js';
 
 @Module({
-  imports: [AuthModule, DatabaseModule, HouseholdModule, PersonModule, ProtectionModule],
+  imports: [AuthModule, DatabaseModule, HouseholdModule, PersonModule, ProtectionModule, TimelineModule],
   controllers: [HealthController],
 })
 export class AppModule {}
