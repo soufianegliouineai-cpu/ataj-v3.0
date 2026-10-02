@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { LifeOSIdentity } from '../auth/auth.types.js';
 import { DatabaseService } from '../database/database.service.js';
 import type { CreatePersonDto } from './person.dto.js';
@@ -24,6 +24,7 @@ export class PersonService {
 
   async create(identity: LifeOSIdentity, householdId: string, input: CreatePersonDto) {
     return this.database.withUserTransaction(identity.userId, async (client) => {
+      await requireHousehold(client, householdId);
       const result = await client.query<{
         id: string;
         household_id: string;
@@ -67,6 +68,7 @@ export class PersonService {
 
   async list(identity: LifeOSIdentity, householdId: string) {
     return this.database.withUserTransaction(identity.userId, async (client) => {
+      await requireHousehold(client, householdId);
       const result = await client.query<{
         id: string;
         household_id: string;
@@ -117,4 +119,21 @@ function mapPerson(row: {
     jurisdiction: row.jurisdiction,
     createdAt: row.created_at,
   };
+}
+
+async function requireHousehold(
+  client: import('pg').PoolClient,
+  householdId: string,
+) {
+  const result = await client.query<{ id: string }>(
+    'select id from public.households where id = $1',
+    [householdId],
+  );
+
+  if (result.rowCount !== 1) {
+    throw new NotFoundException({
+      code: 'HOUSEHOLD_NOT_FOUND',
+      message: 'Household was not found.',
+    });
+  }
 }
