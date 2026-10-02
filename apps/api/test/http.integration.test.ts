@@ -169,14 +169,43 @@ test('authenticated HTTP flow creates household and persists protection graph', 
     .expect(201);
 
   assert.match(uploadIntent.body.data.id, /^[0-9a-f-]{36}$/i);
-  assert.equal(uploadIntent.body.data.quarantine.status, 'intent_created');
+  assert.equal(uploadIntent.body.data.quarantine.status, 'uploading');
   assert.equal(uploadIntent.body.data.quarantine.malwareStatus, 'pending');
-  assert.equal(uploadIntent.body.data.storage.configured, false);
-  assert.equal(uploadIntent.body.data.storage.provider, 'unconfigured');
-  assert.equal(uploadIntent.body.data.storage.uploadUrl, null);
+  assert.equal(uploadIntent.body.data.storage.configured, true);
+  assert.equal(uploadIntent.body.data.storage.provider, 'azure_blob');
+  assert.equal(uploadIntent.body.data.storage.authorization, 'shared_key_sas');
+  assert.match(uploadIntent.body.data.storage.uploadUrl, /^http:\/\/127\.0\.0\.1:10000\/devstoreaccount1\//);
+  assert.equal(uploadIntent.body.data.storage.requiredHeaders['x-ms-blob-type'], 'BlockBlob');
+  assert.equal(uploadIntent.body.data.storage.requiredHeaders['Content-Type'], 'application/pdf');
+  assert.ok(Date.parse(uploadIntent.body.data.storage.expiresAt) > Date.now());
   assert.equal(uploadIntent.body.data.file.declaredSha256, 'a'.repeat(64));
   assert.equal(uploadIntent.body.data.file.hashVerification, 'pending');
-  assert.equal(uploadIntent.body.meta.byteTransportConfigured, false);
+  assert.equal(uploadIntent.body.meta.byteTransportConfigured, true);
+
+  const uploadBytes = Buffer.alloc(1024, 0x25);
+  const putResponse = await fetch(uploadIntent.body.data.storage.uploadUrl, {
+    method: 'PUT',
+    headers: uploadIntent.body.data.storage.requiredHeaders,
+    body: uploadBytes,
+  });
+  assert.equal(putResponse.status, 201);
+
+  const readAttempt = await fetch(uploadIntent.body.data.storage.uploadUrl);
+  assert.equal(readAttempt.status, 403, 'upload SAS must not grant read permission');
+
+  const finalizedUpload = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/${uploadIntent.body.data.id}/finalize`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(201);
+
+  assert.equal(finalizedUpload.body.data.status, 'quarantined');
+  assert.equal(finalizedUpload.body.data.quarantine.malwareStatus, 'pending');
+  assert.equal(finalizedUpload.body.data.quarantine.requiredBeforeProcessing, true);
+  assert.equal(finalizedUpload.body.data.file.sizeBytes, 1024);
+  assert.equal(finalizedUpload.body.data.file.hashVerification, 'pending_scan');
+  assert.equal(finalizedUpload.body.data.storage.provider, 'azure_blob');
+  assert.ok(finalizedUpload.body.data.storage.etag);
+  assert.equal(finalizedUpload.body.meta.byteTransportConfigured, true);
 
   const uploads = await request(app.getHttpServer())
     .get(`/v1/households/${householdId}/uploads`)
