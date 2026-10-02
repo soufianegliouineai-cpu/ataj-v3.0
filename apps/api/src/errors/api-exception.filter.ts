@@ -47,6 +47,18 @@ export class ApiExceptionFilter implements ExceptionFilter {
           : 'Request failed.'
     );
 
+    if (status >= 500 && exception instanceof Error) {
+      const internalCode = (exception as Error & { code?: string }).code;
+      console.error('lifeos unhandled request error', {
+        requestId: request.lifeosRequestId ?? 'unknown',
+        method: request.method,
+        path: request.path,
+        name: exception.name,
+        message: exception.message,
+        code: internalCode ?? null,
+      });
+    }
+
     response.status(status).json({
       error: {
         code,
