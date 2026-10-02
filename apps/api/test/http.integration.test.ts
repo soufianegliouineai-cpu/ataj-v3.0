@@ -172,6 +172,16 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.ok(first.body.data.persistence.deadlineId);
   assert.ok(first.body.data.persistence.taskId);
 
+  const homeBeforeCompletion = await request(app.getHttpServer())
+    .get('/v1/home')
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  assert.equal(homeBeforeCompletion.body.data.counts.households, 1);
+  assert.equal(homeBeforeCompletion.body.data.coverage.identity, 'protected');
+  assert.equal(homeBeforeCompletion.body.data.nextAction.taskId, first.body.data.persistence.taskId);
+  assert.equal(homeBeforeCompletion.body.data.status.state, 'upcoming');
+
   const replay = await request(app.getHttpServer())
     .post(`/v1/households/${householdId}/protection/expiry`)
     .set('Authorization', `Bearer ${token}`)
@@ -232,6 +242,16 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.equal(completedItem.deadline.status, 'completed');
   assert.equal(completedItem.obligation.status, 'completed');
 
+  const homeAfterCompletion = await request(app.getHttpServer())
+    .get('/v1/home')
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  assert.equal(homeAfterCompletion.body.data.nextAction, null);
+  assert.equal(homeAfterCompletion.body.data.upcoming.length, 0);
+  assert.equal(homeAfterCompletion.body.data.counts.completedObligations, 1);
+  assert.equal(homeAfterCompletion.body.data.status.state, 'calm');
+
   const outsiderToken = await signToken(outsiderId);
   const denied = await request(app.getHttpServer())
     .post(`/v1/households/${householdId}/protection/expiry`)
@@ -247,6 +267,14 @@ test('authenticated HTTP flow creates household and persists protection graph', 
     .set('Authorization', `Bearer ${outsiderToken}`)
     .expect(200);
   assert.deepEqual(outsiderHouseholds.body.data, []);
+
+  const outsiderHome = await request(app.getHttpServer())
+    .get('/v1/home')
+    .set('Authorization', `Bearer ${outsiderToken}`)
+    .expect(200);
+  assert.equal(outsiderHome.body.data.counts.households, 0);
+  assert.equal(outsiderHome.body.data.nextAction, null);
+  assert.deepEqual(outsiderHome.body.data.upcoming, []);
 
   const outsiderTimeline = await request(app.getHttpServer())
     .get(`/v1/households/${householdId}/timeline`)
