@@ -205,9 +205,9 @@ test('authenticated HTTP flow creates household and persists protection graph', 
     .set('Authorization', `Bearer ${outsiderToken}`)
     .set('Idempotency-Key', 'http-integration-outsider-001')
     .send(body)
-    .expect(403);
+    .expect(404);
 
-  assert.equal(denied.body.error.code, 'ACCESS_DENIED');
+  assert.equal(denied.body.error.code, 'HOUSEHOLD_NOT_FOUND');
 
   const outsiderHouseholds = await request(app.getHttpServer())
     .get('/v1/households')
@@ -221,21 +221,20 @@ test('authenticated HTTP flow creates household and persists protection graph', 
     .expect(404);
   assert.equal(outsiderTimeline.body.error.code, 'HOUSEHOLD_NOT_FOUND');
 
-  await request(app.getHttpServer())
+  const hiddenPeople = await request(app.getHttpServer())
     .get(`/v1/households/${householdId}/people`)
     .set('Authorization', `Bearer ${outsiderToken}`)
-    .expect(200)
-    .expect((response) => {
-      assert.deepEqual(response.body.data, []);
-    });
+    .expect(404);
+
+  assert.equal(hiddenPeople.body.error.code, 'HOUSEHOLD_NOT_FOUND');
 
   const deniedPerson = await request(app.getHttpServer())
     .post(`/v1/households/${householdId}/people`)
     .set('Authorization', `Bearer ${outsiderToken}`)
     .send({ displayName: 'Unauthorized Person', relationship: 'other' })
-    .expect(403);
+    .expect(404);
 
-  assert.equal(deniedPerson.body.error.code, 'ACCESS_DENIED');
+  assert.equal(deniedPerson.body.error.code, 'HOUSEHOLD_NOT_FOUND');
 
   const secondHousehold = await request(app.getHttpServer())
     .post('/v1/households')
