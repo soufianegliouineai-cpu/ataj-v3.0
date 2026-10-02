@@ -52,6 +52,18 @@ export class ProtectionRepository {
         [input.userId],
       );
 
+      const household = await client.query<{ id: string }>(
+        `select id from public.households where id = $1`,
+        [input.householdId],
+      );
+
+      if (household.rowCount !== 1) {
+        throw new NotFoundException({
+          code: 'HOUSEHOLD_NOT_FOUND',
+          message: 'The selected household is not available.',
+        });
+      }
+
       if (input.personId) {
         const person = await client.query<{ id: string }>(
           `select id
