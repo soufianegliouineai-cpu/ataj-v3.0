@@ -57,6 +57,24 @@ export class UploadController {
     };
   }
 
+  @Post(':uploadId/scan')
+  async scan(
+    @Param('householdId', new ParseUUIDPipe()) householdId: string,
+    @Param('uploadId', new ParseUUIDPipe()) uploadId: string,
+    @Req() request: AuthenticatedLifeOSRequest,
+  ) {
+    const identity = this.requireContext(request);
+    const requestId = request.lifeosRequestId ?? 'unknown';
+
+    return {
+      data: await this.uploads.scan(identity, householdId, uploadId, requestId),
+      meta: {
+        requestId,
+        malwareScannerConfigured: this.uploads.scannerConfigured,
+      },
+    };
+  }
+
   @Get()
   async list(
     @Param('householdId', new ParseUUIDPipe()) householdId: string,
