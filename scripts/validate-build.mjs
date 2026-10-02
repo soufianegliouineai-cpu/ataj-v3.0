@@ -81,6 +81,30 @@ if (!taskCompletePath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'
   failures.push('Nest OpenAPI missing authenticated task completion');
 }
 
+const uploadIntentPath = nestOpenapi.paths?.['/households/{householdId}/uploads/intents']?.post;
+if (!uploadIntentPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
+  failures.push('Nest OpenAPI missing authenticated upload intent creation');
+}
+const uploadListPath = nestOpenapi.paths?.['/households/{householdId}/uploads']?.get;
+if (!uploadListPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
+  failures.push('Nest OpenAPI missing authenticated upload intent list');
+}
+const uploadSchema = nestOpenapi.components?.schemas?.CreateUploadIntentRequest;
+if (uploadSchema?.properties?.sizeBytes?.maximum !== 26214400) {
+  failures.push('Nest OpenAPI upload size limit must be 25 MiB');
+}
+const uploadMimes = uploadSchema?.properties?.mimeType?.enum ?? [];
+for (const mime of ['application/pdf','image/jpeg','image/png','image/heic','image/webp']) {
+  if (!uploadMimes.includes(mime)) failures.push(`Nest OpenAPI missing upload MIME ${mime}`);
+}
+const nestServerUrls = (nestOpenapi.servers ?? []).map(server => server.url);
+if (nestServerUrls.some(url => /^https:\/\/api\.lifeos\.ai/i.test(url))) {
+  failures.push('Nest OpenAPI must not claim undeployed api.lifeos.ai production hosting');
+}
+if (!nestServerUrls.includes('http://localhost:3000/v1')) {
+  failures.push('Nest OpenAPI must identify the verified local/container server');
+}
+
 const persistentPath = nestOpenapi.paths?.['/households/{householdId}/protection/expiry']?.post;
 if (!persistentPath) failures.push('Nest OpenAPI missing authenticated persistent expiry route');
 if (!persistentPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
