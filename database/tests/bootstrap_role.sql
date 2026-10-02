@@ -24,3 +24,4 @@ grant select, insert, update, delete on public.idempotency_records to lifeos_app
 grant select, insert on public.audit_logs to lifeos_app;
 
 grant select, insert, update, delete on public.document_uploads to lifeos_app;
+grant select, insert, update, delete on public.document_processing_jobs to lifeos_app;
