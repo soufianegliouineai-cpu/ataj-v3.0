@@ -124,6 +124,7 @@
             "type": "string",
             "enum": [
               "passport",
+              "identity_card",
               "driving_license",
               "insurance",
               "visa",
