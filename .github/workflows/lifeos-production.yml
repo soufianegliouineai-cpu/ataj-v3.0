@@ -38,6 +38,10 @@ jobs:
         run: npm test
       - name: Static production build validation
         run: npm run build
+      - name: Install NestJS API dependencies
+        run: npm install --prefix apps/api --ignore-scripts --no-audit --no-fund
+      - name: Verify NestJS API
+        run: npm run verify --prefix apps/api
       - name: Install PostgreSQL client
         run: |
           if ! command -v psql >/dev/null 2>&1; then
