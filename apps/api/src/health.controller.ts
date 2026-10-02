@@ -1,10 +1,14 @@
 import { Controller, Get } from '@nestjs/common';
 import { LIFEOS_API_VERSION } from './constants.js';
+import { OidcAuthService } from './auth/oidc-auth.service.js';
 import { DatabaseService } from './database/database.service.js';
 
 @Controller()
 export class HealthController {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly auth: OidcAuthService,
+  ) {}
 
   @Get('health')
   health() {
@@ -34,7 +38,7 @@ export class HealthController {
         genericExpiryProtection: 'ready',
         postgresSchema: 'tested',
         persistence: database.ok ? 'ready' : database.enabled ? 'degraded' : 'not_enabled',
-        authentication: 'not_enabled',
+        authentication: this.auth.enabled ? 'ready' : 'not_enabled',
         ocrExtraction: 'not_enabled',
         jurisdictionRules: 'not_enabled',
       },
