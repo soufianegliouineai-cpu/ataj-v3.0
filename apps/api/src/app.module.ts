@@ -5,8 +5,10 @@ import { HealthController } from './health.controller.js';
 import { HomeModule } from './home/home.module.js';
 import { ExtractionReviewModule } from './extractions/extraction-review.module.js';
 import { HouseholdModule } from './households/household.module.js';
+import { OcrModule } from './ocr/ocr.module.js';
 import { PersonModule } from './people/person.module.js';
 import { ProtectionModule } from './protection/protection.module.js';
+import { DocumentProcessingModule } from './processing/document-processing.module.js';
 import { MalwareScannerModule } from './scanning/malware-scanner.module.js';
 import { TaskModule } from './tasks/task.module.js';
 import { TimelineModule } from './timeline/timeline.module.js';
@@ -14,7 +16,7 @@ import { UploadModule } from './uploads/upload.module.js';
 import { ObjectStorageModule } from './storage/object-storage.module.js';
 
 @Module({
-  imports: [AuthModule, DatabaseModule, ObjectStorageModule, MalwareScannerModule, ExtractionReviewModule, HomeModule, HouseholdModule, PersonModule, ProtectionModule, TaskModule, TimelineModule, UploadModule],
+  imports: [AuthModule, DatabaseModule, ObjectStorageModule, MalwareScannerModule, OcrModule, DocumentProcessingModule, ExtractionReviewModule, HomeModule, HouseholdModule, PersonModule, ProtectionModule, TaskModule, TimelineModule, UploadModule],
   controllers: [HealthController],
 })
 export class AppModule {}
