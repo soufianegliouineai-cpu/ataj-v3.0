@@ -8,7 +8,7 @@ end $$;
 grant usage on schema public to lifeos_app;
 grant usage on schema private to lifeos_app;
 
-grant select, update on public.app_users to lifeos_app;
+grant select, insert, update on public.app_users to lifeos_app;
 grant select, insert, update on public.households to lifeos_app;
 grant select, insert, update, delete on public.household_members to lifeos_app;
 grant select, insert, update on public.people to lifeos_app;
