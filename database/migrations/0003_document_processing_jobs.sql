@@ -66,6 +66,12 @@ begin
       message = 'upload storage provider is not configured';
   end if;
 
+  if new.processor = 'unconfigured' then
+    raise exception using
+      errcode = '23514',
+      message = 'processing processor is not configured';
+  end if;
+
   if upload_row.status <> 'clean'
      or upload_row.malware_status <> 'clean'
      or upload_row.actual_size_bytes is null
