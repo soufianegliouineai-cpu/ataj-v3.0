@@ -21,6 +21,10 @@ const issuer = 'https://integration.issuer.lifeos.test';
 const audience = 'lifeos-api';
 const ownerId = '00000000-0000-4000-8000-000000000201';
 const outsiderId = '00000000-0000-4000-8000-000000000202';
+const extractionReviewOwnerId = '00000000-0000-4000-8000-000000000213';
+const extractionReviewHouseholdId = '10000000-0000-4000-8000-000000000213';
+const extractionReviewRunId = '50000000-0000-4000-8000-000000000213';
+const extractionReviewFieldId = '60000000-0000-4000-8000-000000000213';
 
 let app: INestApplication;
 let server: Server;
@@ -456,6 +460,80 @@ test('authenticated HTTP flow creates household and persists protection graph', 
     })
     .expect(404);
   assert.equal(crossHouseholdUpload.body.error.code, 'PERSON_NOT_FOUND');
+});
+
+test('explicit extraction review promotes one trusted fact with immutable provenance', { skip: !enabled }, async () => {
+  const token = await signToken(extractionReviewOwnerId);
+  const outsiderToken = await signToken(outsiderId);
+
+  const before = await request(app.getHttpServer())
+    .get(`/v1/households/${extractionReviewHouseholdId}/extractions/${extractionReviewRunId}`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  assert.equal(before.body.data.status, 'succeeded');
+  assert.equal(before.body.data.engine.provider, 'custom');
+  assert.equal(before.body.data.engine.modelName, 'ci-fixture-extractor');
+  assert.equal(before.body.data.sourceIntegrity.sha256, '2'.repeat(64));
+
+  const field = before.body.data.fields.find(
+    (item: { id: string }) => item.id === extractionReviewFieldId,
+  );
+  assert.ok(field);
+  assert.equal(field.trustClass, 'AI_EXTRACTED');
+  assert.equal(field.reviewStatus, 'pending');
+  assert.equal(field.reviewRequired, true);
+  assert.equal(field.originalConfidence, 0.9821);
+  assert.equal(field.provenance.page, 1);
+
+  const hidden = await request(app.getHttpServer())
+    .get(`/v1/households/${extractionReviewHouseholdId}/extractions/${extractionReviewRunId}`)
+    .set('Authorization', `Bearer ${outsiderToken}`)
+    .expect(404);
+  assert.equal(hidden.body.error.code, 'HOUSEHOLD_NOT_FOUND');
+
+  const confirmed = await request(app.getHttpServer())
+    .post(`/v1/households/${extractionReviewHouseholdId}/extractions/${extractionReviewRunId}/fields/${extractionReviewFieldId}/confirm`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(201);
+
+  assert.equal(confirmed.body.data.replayed, false);
+  assert.equal(confirmed.body.data.trustClass, 'USER_CONFIRMED');
+  assert.ok(confirmed.body.data.documentId);
+  assert.ok(confirmed.body.data.factId);
+  assert.equal(confirmed.body.data.fieldKey, 'expiry_date');
+  assert.equal(confirmed.body.data.normalizedValue, '2029-12-31');
+  assert.equal(confirmed.body.data.provenance.sourceOrigin, 'ai_extracted');
+  assert.equal(confirmed.body.data.provenance.originalConfidence, 0.9821);
+  assert.equal(confirmed.body.data.provenance.page, 1);
+  assert.equal(confirmed.body.data.provenance.sourceSha256, '2'.repeat(64));
+  assert.equal(confirmed.body.data.provenance.modelName, 'ci-fixture-extractor');
+
+  const replay = await request(app.getHttpServer())
+    .post(`/v1/households/${extractionReviewHouseholdId}/extractions/${extractionReviewRunId}/fields/${extractionReviewFieldId}/confirm`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(201);
+
+  assert.equal(replay.body.data.replayed, true);
+  assert.equal(replay.body.data.documentId, confirmed.body.data.documentId);
+  assert.equal(replay.body.data.factId, confirmed.body.data.factId);
+
+  const after = await request(app.getHttpServer())
+    .get(`/v1/households/${extractionReviewHouseholdId}/extractions/${extractionReviewRunId}`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  const reviewed = after.body.data.fields.find(
+    (item: { id: string }) => item.id === extractionReviewFieldId,
+  );
+  assert.equal(reviewed.reviewStatus, 'confirmed');
+  assert.equal(reviewed.reviewRequired, false);
+
+  const outsiderConfirm = await request(app.getHttpServer())
+    .post(`/v1/households/${extractionReviewHouseholdId}/extractions/${extractionReviewRunId}/fields/${extractionReviewFieldId}/confirm`)
+    .set('Authorization', `Bearer ${outsiderToken}`)
+    .expect(404);
+  assert.equal(outsiderConfirm.body.error.code, 'HOUSEHOLD_NOT_FOUND');
 });
 
 test('persistent HTTP write requires idempotency key after authentication', { skip: !enabled }, async () => {
