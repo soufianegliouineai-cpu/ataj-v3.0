@@ -1,0 +1,41 @@
+name: LifeOS Pin Nest Lock
+
+on:
+  push:
+    branches:
+      - lifeos-production-bootstrap
+
+permissions:
+  contents: write
+
+jobs:
+  pin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: lifeos-production-bootstrap
+      - name: Detect existing lock
+        id: lock
+        run: |
+          if [ -f apps/api/package-lock.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v6
+        if: steps.lock.outputs.exists != 'true'
+        with:
+          node-version: 22
+      - name: Generate exact NestJS lock
+        if: steps.lock.outputs.exists != 'true'
+        run: npm install --prefix apps/api --ignore-scripts --no-audit --no-fund
+      - name: Commit lockfile
+        if: steps.lock.outputs.exists != 'true'
+        run: |
+          test -f apps/api/package-lock.json
+          git config user.name "lifeos-ci"
+          git config user.email "lifeos-ci@users.noreply.github.com"
+          git add apps/api/package-lock.json
+          git commit -m "chore(api): pin NestJS dependency lock"
+          git push origin HEAD:lifeos-production-bootstrap
