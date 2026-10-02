@@ -28,12 +28,31 @@ export class UploadController {
     @Req() request: AuthenticatedLifeOSRequest,
   ) {
     const identity = this.requireContext(request);
+    const requestId = request.lifeosRequestId ?? 'unknown';
 
     return {
-      data: await this.uploads.createIntent(identity, householdId, input),
+      data: await this.uploads.createIntent(identity, householdId, input, requestId),
       meta: {
-        requestId: request.lifeosRequestId ?? 'unknown',
-        byteTransportConfigured: false,
+        requestId,
+        byteTransportConfigured: this.uploads.transportConfigured,
+      },
+    };
+  }
+
+  @Post(':uploadId/finalize')
+  async finalize(
+    @Param('householdId', new ParseUUIDPipe()) householdId: string,
+    @Param('uploadId', new ParseUUIDPipe()) uploadId: string,
+    @Req() request: AuthenticatedLifeOSRequest,
+  ) {
+    const identity = this.requireContext(request);
+    const requestId = request.lifeosRequestId ?? 'unknown';
+
+    return {
+      data: await this.uploads.finalize(identity, householdId, uploadId, requestId),
+      meta: {
+        requestId,
+        byteTransportConfigured: this.uploads.transportConfigured,
       },
     };
   }
