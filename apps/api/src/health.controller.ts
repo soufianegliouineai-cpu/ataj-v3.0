@@ -1,8 +1,11 @@
 import { Controller, Get } from '@nestjs/common';
 import { LIFEOS_API_VERSION } from './constants.js';
+import { DatabaseService } from './database/database.service.js';
 
 @Controller()
 export class HealthController {
+  constructor(private readonly database: DatabaseService) {}
+
   @Get('health')
   health() {
     return {
@@ -15,7 +18,11 @@ export class HealthController {
   }
 
   @Get('readiness')
-  readiness() {
+  async readiness() {
+    const database = this.database.enabled
+      ? await this.database.ping().catch(() => ({ enabled: true, ok: false }))
+      : { enabled: false, ok: false };
+
     return {
       ready: true,
       service: 'lifeos-api',
@@ -25,11 +32,14 @@ export class HealthController {
         provenance: 'ready',
         idempotency: 'ready',
         genericExpiryProtection: 'ready',
-        postgresSchema: 'tested_not_attached',
-        persistence: 'not_enabled',
+        postgresSchema: 'tested',
+        persistence: database.ok ? 'ready' : database.enabled ? 'degraded' : 'not_enabled',
         authentication: 'not_enabled',
         ocrExtraction: 'not_enabled',
         jurisdictionRules: 'not_enabled',
+      },
+      dependencies: {
+        database,
       },
     };
   }
