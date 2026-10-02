@@ -2,6 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { LIFEOS_API_VERSION } from './constants.js';
 import { OidcAuthService } from './auth/oidc-auth.service.js';
 import { DatabaseService } from './database/database.service.js';
+import { MalwareScannerService } from './scanning/malware-scanner.service.js';
 import { ObjectStorageService } from './storage/object-storage.service.js';
 
 @Controller()
@@ -10,6 +11,7 @@ export class HealthController {
     private readonly database: DatabaseService,
     private readonly auth: OidcAuthService,
     private readonly storage: ObjectStorageService,
+    private readonly scanner: MalwareScannerService,
   ) {}
 
   @Get('health')
@@ -48,7 +50,7 @@ export class HealthController {
             : 'not_configured',
         uploadMetadata: database.ok ? 'ready' : database.enabled ? 'degraded' : 'not_configured',
         byteTransport: this.storage.configured ? 'ready' : 'not_configured',
-        malwareScanning: 'not_configured',
+        malwareScanning: this.scanner.configured ? 'ready' : 'not_configured',
         extractionReview: database.ok ? 'ready' : database.enabled ? 'degraded' : 'not_configured',
         ocrExtraction: 'not_configured',
         jurisdictionRules: 'not_enabled',
@@ -59,6 +61,7 @@ export class HealthController {
           configured: this.auth.enabled,
         },
         objectStorage: this.storage.capability,
+        malwareScanner: this.scanner.capability,
       },
     };
   }
