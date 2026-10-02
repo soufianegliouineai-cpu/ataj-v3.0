@@ -38,14 +38,8 @@ jobs:
         run: npm test
       - name: Static production build validation
         run: npm run build
-      - name: Install NestJS API dependencies
-        run: npm install --prefix apps/api --ignore-scripts --no-audit --no-fund
-      - name: Export NestJS dependency lock
-        uses: actions/upload-artifact@v4
-        with:
-          name: lifeos-api-package-lock
-          path: apps/api/package-lock.json
-          retention-days: 1
+      - name: Install locked NestJS API dependencies
+        run: npm ci --prefix apps/api --ignore-scripts --no-audit --no-fund
       - name: Verify NestJS API
         run: npm run verify --prefix apps/api
       - name: Install PostgreSQL client
