@@ -8,9 +8,10 @@ import { PersonModule } from './people/person.module.js';
 import { ProtectionModule } from './protection/protection.module.js';
 import { TaskModule } from './tasks/task.module.js';
 import { TimelineModule } from './timeline/timeline.module.js';
+import { UploadModule } from './uploads/upload.module.js';
 
 @Module({
-  imports: [AuthModule, DatabaseModule, HomeModule, HouseholdModule, PersonModule, ProtectionModule, TaskModule, TimelineModule],
+  imports: [AuthModule, DatabaseModule, HomeModule, HouseholdModule, PersonModule, ProtectionModule, TaskModule, TimelineModule, UploadModule],
   controllers: [HealthController],
 })
 export class AppModule {}
