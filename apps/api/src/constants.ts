@@ -2,6 +2,7 @@ export const LIFEOS_API_VERSION = '0.3.0';
 
 export const SUPPORTED_DOCUMENT_TYPES = [
   'passport',
+  'identity_card',
   'driving_license',
   'insurance',
   'visa',
