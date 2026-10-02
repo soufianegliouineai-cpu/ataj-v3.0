@@ -116,6 +116,17 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.equal(created.body.data.role, 'owner');
   assert.equal(created.body.data.homeJurisdiction, 'MA');
 
+  const households = await request(app.getHttpServer())
+    .get('/v1/households')
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  assert.ok(
+    households.body.data.some((item: { id: string; role: string }) =>
+      item.id === householdId && item.role === 'owner'
+    ),
+  );
+
   const person = await request(app.getHttpServer())
     .post(`/v1/households/${householdId}/people`)
     .set('Authorization', `Bearer ${token}`)
@@ -171,6 +182,23 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.equal(replay.body.meta.replayed, true);
   assert.deepEqual(replay.body.data.persistence, first.body.data.persistence);
 
+  const timeline = await request(app.getHttpServer())
+    .get(`/v1/households/${householdId}/timeline`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  assert.equal(timeline.body.data.household.id, householdId);
+  assert.ok(timeline.body.data.items.length >= 1);
+  const timelineItem = timeline.body.data.items.find(
+    (item: { deadline: { id: string } }) =>
+      item.deadline.id === first.body.data.persistence.deadlineId,
+  );
+  assert.ok(timelineItem);
+  assert.equal(timelineItem.document.id, first.body.data.persistence.documentId);
+  assert.equal(timelineItem.obligation.id, first.body.data.persistence.obligationId);
+  assert.equal(timelineItem.task.id, first.body.data.persistence.taskId);
+  assert.equal(timelineItem.deadline.dueAt, '2028-12-31');
+
   const outsiderToken = await signToken(outsiderId);
   const denied = await request(app.getHttpServer())
     .post(`/v1/households/${householdId}/protection/expiry`)
@@ -180,6 +208,18 @@ test('authenticated HTTP flow creates household and persists protection graph', 
     .expect(403);
 
   assert.equal(denied.body.error.code, 'ACCESS_DENIED');
+
+  const outsiderHouseholds = await request(app.getHttpServer())
+    .get('/v1/households')
+    .set('Authorization', `Bearer ${outsiderToken}`)
+    .expect(200);
+  assert.deepEqual(outsiderHouseholds.body.data, []);
+
+  const outsiderTimeline = await request(app.getHttpServer())
+    .get(`/v1/households/${householdId}/timeline`)
+    .set('Authorization', `Bearer ${outsiderToken}`)
+    .expect(404);
+  assert.equal(outsiderTimeline.body.error.code, 'HOUSEHOLD_NOT_FOUND');
 
   await request(app.getHttpServer())
     .get(`/v1/households/${householdId}/people`)
