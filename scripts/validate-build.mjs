@@ -97,6 +97,18 @@ const uploadMimes = uploadSchema?.properties?.mimeType?.enum ?? [];
 for (const mime of ['application/pdf','image/jpeg','image/png','image/heic','image/webp']) {
   if (!uploadMimes.includes(mime)) failures.push(`Nest OpenAPI missing upload MIME ${mime}`);
 }
+const extractionReviewPath = nestOpenapi.paths?.['/households/{householdId}/extractions/{runId}']?.get;
+if (!extractionReviewPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
+  failures.push('Nest OpenAPI missing authenticated extraction review');
+}
+const extractionConfirmPath = nestOpenapi.paths?.['/households/{householdId}/extractions/{runId}/fields/{fieldId}/confirm']?.post;
+if (!extractionConfirmPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
+  failures.push('Nest OpenAPI missing authenticated extracted-field confirmation');
+}
+if (!String(extractionConfirmPath?.responses?.['201']?.description ?? '').includes('USER_CONFIRMED')) {
+  failures.push('Nest extracted-field confirmation must document USER_CONFIRMED trust handoff');
+}
+
 const nestServerUrls = (nestOpenapi.servers ?? []).map(server => server.url);
 if (nestServerUrls.some(url => /^https:\/\/api\.lifeos\.ai/i.test(url))) {
   failures.push('Nest OpenAPI must not claim undeployed api.lifeos.ai production hosting');
