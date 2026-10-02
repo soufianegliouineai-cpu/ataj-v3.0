@@ -387,6 +387,52 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.equal(confirmedExpiry.body.data.normalizedValue, '2030-12-31');
   assert.equal(confirmedExpiry.body.data.provenance.sourceOrigin, 'ai_extracted');
   assert.equal(confirmedExpiry.body.data.provenance.sourceSha256, uploadSha256);
+  assert.equal(confirmedExpiry.body.data.protection.dueAt, '2030-12-31');
+  assert.equal(confirmedExpiry.body.data.protection.recommendedActionAt, '2030-10-02');
+  assert.equal(confirmedExpiry.body.data.protection.rule.code, 'generic_expiry_protection_v1');
+  assert.equal(confirmedExpiry.body.data.protection.rule.deterministic, true);
+  assert.equal(confirmedExpiry.body.data.protection.rule.jurisdictional, false);
+  assert.equal(confirmedExpiry.body.data.protection.rule.legalRuleApplied, false);
+  assert.match(confirmedExpiry.body.data.protection.obligationId, /^[0-9a-f-]{36}$/i);
+  assert.match(confirmedExpiry.body.data.protection.deadlineId, /^[0-9a-f-]{36}$/i);
+  assert.match(confirmedExpiry.body.data.protection.taskId, /^[0-9a-f-]{36}$/i);
+
+  const confirmationReplay = await request(app.getHttpServer())
+    .post(
+      `/v1/households/${householdId}/extractions/${extractionRunId}/fields/${expiryField.id}/confirm`,
+    )
+    .set('Authorization', `Bearer ${token}`)
+    .expect(201);
+
+  assert.equal(confirmationReplay.body.data.replayed, true);
+  assert.equal(
+    confirmationReplay.body.data.protection.obligationId,
+    confirmedExpiry.body.data.protection.obligationId,
+  );
+  assert.equal(
+    confirmationReplay.body.data.protection.deadlineId,
+    confirmedExpiry.body.data.protection.deadlineId,
+  );
+  assert.equal(
+    confirmationReplay.body.data.protection.taskId,
+    confirmedExpiry.body.data.protection.taskId,
+  );
+
+  const protectedTimeline = await request(app.getHttpServer())
+    .get(`/v1/households/${householdId}/timeline`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  const extractedProtection = protectedTimeline.body.data.items.find(
+    (item: { obligation: { id: string } }) =>
+      item.obligation.id === confirmedExpiry.body.data.protection.obligationId,
+  );
+  assert.ok(extractedProtection);
+  assert.equal(extractedProtection.deadline.dueAt, '2030-12-31');
+  assert.equal(extractedProtection.deadline.recommendedActionAt, '2030-10-02');
+  assert.equal(extractedProtection.obligation.type, 'EXPIRY_PROTECTION');
+  assert.equal(extractedProtection.document.id, confirmedExpiry.body.data.documentId);
+  assert.equal(extractedProtection.task.id, confirmedExpiry.body.data.protection.taskId);
 
   const processingReplay = await request(app.getHttpServer())
     .post(`/v1/households/${householdId}/uploads/${uploadIntent.body.data.id}/process`)
