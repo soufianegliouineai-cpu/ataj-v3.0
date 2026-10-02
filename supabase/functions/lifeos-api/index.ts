@@ -3,6 +3,7 @@ const SERVICE = "lifeos-api";
 const DEFAULT_LEAD_DAYS = 90;
 const DOCUMENT_TYPES = new Set([
   "passport",
+  "identity_card",
   "driving_license",
   "insurance",
   "visa",
