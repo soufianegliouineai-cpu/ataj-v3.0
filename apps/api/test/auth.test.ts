@@ -131,3 +131,12 @@ test('valid signed OIDC token reaches persistence boundary', async () => {
 
   assert.equal(response.body.error.code, 'PERSISTENCE_NOT_CONFIGURED');
 });
+
+
+test('readiness reports OIDC configured when verifier is active', async () => {
+  const response = await request(app.getHttpServer()).get('/v1/readiness').expect(200);
+  assert.equal(response.body.capabilities.authentication, 'ready');
+  assert.equal(response.body.dependencies.oidc.configured, true);
+  assert.equal(response.body.capabilities.persistence, 'not_configured');
+  assert.equal(response.body.capabilities.persistentProtection, 'not_configured');
+});
