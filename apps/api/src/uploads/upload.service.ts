@@ -86,6 +86,7 @@ export class UploadService {
            declared_mime_type,
            declared_size_bytes,
            declared_sha256,
+           actual_sha256,
            object_key,
            storage_provider,
            status,
@@ -183,6 +184,7 @@ export class UploadService {
         declared_mime_type: string;
         declared_size_bytes: string;
         declared_sha256: string | null;
+        actual_sha256: string | null;
         object_key: string;
         storage_provider: string;
         status: string;
