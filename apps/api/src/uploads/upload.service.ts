@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { LifeOSIdentity } from '../auth/auth.types.js';
 import { DatabaseService } from '../database/database.service.js';
+import { ObjectStorageService } from '../storage/object-storage.service.js';
 import type { AllowedUploadMimeType, CreateUploadIntentDto } from './upload.dto.js';
 
 const EXTENSION_BY_MIME: Record<AllowedUploadMimeType, string> = {
@@ -14,7 +15,10 @@ const EXTENSION_BY_MIME: Record<AllowedUploadMimeType, string> = {
 
 @Injectable()
 export class UploadService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly storage: ObjectStorageService,
+  ) {}
 
   get enabled() {
     return this.database.enabled;
@@ -147,10 +151,8 @@ export class UploadService {
           requiredBeforeProcessing: true,
         },
         storage: {
-          provider: 'unconfigured',
-          configured: false,
+          ...this.storage.describeUnconfiguredTransport(),
           objectKey: row.object_key,
-          uploadUrl: null,
         },
         expiresAt: row.intent_expires_at,
         createdAt: row.created_at,
