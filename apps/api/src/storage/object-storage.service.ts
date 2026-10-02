@@ -7,6 +7,7 @@ import {
   StorageSharedKeyCredential,
 } from '@azure/storage-blob';
 import { Injectable } from '@nestjs/common';
+import type { Readable } from 'node:stream';
 
 export type ObjectStorageProvider = 'unconfigured' | 'azure_blob' | 's3_compatible';
 export type UploadAuthorization =
@@ -164,6 +165,38 @@ export class ObjectStorageService {
       requiredHeaders: {
         'x-ms-blob-type': 'BlockBlob',
         'Content-Type': contentType,
+      },
+    };
+  }
+
+  async openReadStream(objectKey: string): Promise<{
+    stream: Readable;
+    metadata: StoredObjectMetadata;
+  }> {
+    if (!this.configured || !this.blobService) {
+      throw new Error('OBJECT_STORAGE_NOT_CONFIGURED');
+    }
+
+    const blob = this.blobService
+      .getContainerClient(this.containerName)
+      .getBlockBlobClient(objectKey);
+
+    const response = await blob.download();
+    const stream = response.readableStreamBody as Readable | undefined;
+
+    if (!stream) {
+      throw new Error('OBJECT_STORAGE_STREAM_UNAVAILABLE');
+    }
+
+    return {
+      stream,
+      metadata: {
+        provider: 'azure_blob',
+        objectKey,
+        sizeBytes: response.contentLength ?? 0,
+        contentType: response.contentType ?? null,
+        etag: response.etag ?? null,
+        lastModified: response.lastModified?.toISOString() ?? null,
       },
     };
   }
