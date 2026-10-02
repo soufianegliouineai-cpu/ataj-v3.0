@@ -151,6 +151,83 @@ test('authenticated HTTP flow creates household and persists protection graph', 
 
   assert.ok(people.body.data.some((item: { id: string }) => item.id === personId));
 
+  const uploadIntent = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/intents`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      fileName: 'passport.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      documentType: 'passport',
+      personId,
+      sha256: 'a'.repeat(64),
+    })
+    .expect(201);
+
+  assert.match(uploadIntent.body.data.id, /^[0-9a-f-]{36}$/i);
+  assert.equal(uploadIntent.body.data.quarantine.status, 'intent_created');
+  assert.equal(uploadIntent.body.data.quarantine.malwareStatus, 'pending');
+  assert.equal(uploadIntent.body.data.storage.configured, false);
+  assert.equal(uploadIntent.body.data.storage.provider, 'unconfigured');
+  assert.equal(uploadIntent.body.data.storage.uploadUrl, null);
+  assert.equal(uploadIntent.body.meta.byteTransportConfigured, false);
+
+  const uploads = await request(app.getHttpServer())
+    .get(`/v1/households/${householdId}/uploads`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  assert.ok(uploads.body.data.some((item: { id: string }) => item.id === uploadIntent.body.data.id));
+
+  const invalidMime = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/intents`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      fileName: 'archive.zip',
+      mimeType: 'application/zip',
+      sizeBytes: 1024,
+      documentType: 'other',
+    })
+    .expect(400);
+  assert.equal(invalidMime.body.error.code, 'VALIDATION_ERROR');
+
+  const oversized = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/intents`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      fileName: 'large.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 26_214_401,
+      documentType: 'other',
+    })
+    .expect(400);
+  assert.equal(oversized.body.error.code, 'VALIDATION_ERROR');
+
+  const unsafeFilename = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/intents`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      fileName: '../passport.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      documentType: 'passport',
+    })
+    .expect(400);
+  assert.equal(unsafeFilename.body.error.code, 'VALIDATION_ERROR');
+
+  const badHash = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/intents`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      fileName: 'passport.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      documentType: 'passport',
+      sha256: 'not-a-sha256',
+    })
+    .expect(400);
+  assert.equal(badHash.body.error.code, 'VALIDATION_ERROR');
+
   const body = {
     documentType: 'passport',
     expiryDate: '2028-12-31',
@@ -262,7 +339,25 @@ test('authenticated HTTP flow creates household and persists protection graph', 
 
   assert.equal(denied.body.error.code, 'HOUSEHOLD_NOT_FOUND');
 
-  const outsiderHouseholds = await request(app.getHttpServer())
+  const outsiderUpload = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/uploads/intents`)
+    .set('Authorization', `Bearer ${outsiderToken}`)
+    .send({
+      fileName: 'stolen.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 100,
+      documentType: 'other',
+    })
+    .expect(404);
+  assert.equal(outsiderUpload.body.error.code, 'HOUSEHOLD_NOT_FOUND');
+
+  const outsiderUploads = await request(app.getHttpServer())
+    .get(`/v1/households/${householdId}/uploads`)
+    .set('Authorization', `Bearer ${outsiderToken}`)
+    .expect(404);
+  assert.equal(outsiderUploads.body.error.code, 'HOUSEHOLD_NOT_FOUND');
+
+    const outsiderHouseholds = await request(app.getHttpServer())
     .get('/v1/households')
     .set('Authorization', `Bearer ${outsiderToken}`)
     .expect(200);
@@ -322,6 +417,19 @@ test('authenticated HTTP flow creates household and persists protection graph', 
     .expect(404);
 
   assert.equal(crossHousehold.body.error.code, 'PERSON_NOT_FOUND');
+
+  const crossHouseholdUpload = await request(app.getHttpServer())
+    .post(`/v1/households/${secondHousehold.body.data.id}/uploads/intents`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      fileName: 'cross.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      documentType: 'passport',
+      personId,
+    })
+    .expect(404);
+  assert.equal(crossHouseholdUpload.body.error.code, 'PERSON_NOT_FOUND');
 });
 
 test('persistent HTTP write requires idempotency key after authentication', { skip: !enabled }, async () => {
