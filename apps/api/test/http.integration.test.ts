@@ -196,6 +196,26 @@ test('authenticated HTTP flow creates household and persists protection graph', 
     .expect(403);
 
   assert.equal(deniedPerson.body.error.code, 'ACCESS_DENIED');
+
+  const secondHousehold = await request(app.getHttpServer())
+    .post('/v1/households')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Second HTTP Household', homeJurisdiction: 'MA' })
+    .expect(201);
+
+  const crossHousehold = await request(app.getHttpServer())
+    .post(`/v1/households/${secondHousehold.body.data.id}/protection/expiry`)
+    .set('Authorization', `Bearer ${token}`)
+    .set('Idempotency-Key', 'http-cross-household-person-001')
+    .send({
+      documentType: 'passport',
+      expiryDate: '2029-01-31',
+      leadDays: 90,
+      personId,
+    })
+    .expect(404);
+
+  assert.equal(crossHousehold.body.error.code, 'PERSON_NOT_FOUND');
 });
 
 test('persistent HTTP write requires idempotency key after authentication', { skip: !enabled }, async () => {
