@@ -401,11 +401,31 @@ create policy obligations_authorized_read on public.obligations for select using
 create policy obligations_creator_insert on public.obligations for insert with check (
   created_by = private.current_user_id() and private.is_household_member(household_id)
 );
+create policy obligations_creator_update on public.obligations for update
+  using (created_by = private.current_user_id())
+  with check (created_by = private.current_user_id());
 
 create policy deadlines_authorized_read on public.deadlines for select using (private.can_read_obligation(obligation_id));
 create policy deadlines_authorized_insert on public.deadlines for insert with check (
   private.is_household_member(household_id) and private.can_read_obligation(obligation_id)
 );
+create policy deadlines_creator_update on public.deadlines for update
+  using (
+    exists (
+      select 1
+      from public.obligations o
+      where o.id = obligation_id
+        and o.created_by = private.current_user_id()
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from public.obligations o
+      where o.id = obligation_id
+        and o.created_by = private.current_user_id()
+    )
+  );
 
 create policy tasks_participant_read on public.tasks for select using (
   created_by = private.current_user_id() or assigned_to_user_id = private.current_user_id()
