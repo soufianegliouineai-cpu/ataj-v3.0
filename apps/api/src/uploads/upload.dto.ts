@@ -25,8 +25,8 @@ export type AllowedUploadMimeType = (typeof ALLOWED_UPLOAD_MIME_TYPES)[number];
 export class CreateUploadIntentDto {
   @IsString()
   @Length(1, 180)
-  @Matches(/^[^\\/\u0000]+$/, {
-    message: 'fileName must be a base filename without path separators.',
+  @Matches(/^(?!\.{1,2}$)(?=.*\S)[^\\/\u0000]+$/, {
+    message: 'fileName must be a non-empty base filename without path separators.',
   })
   fileName!: string;
 
