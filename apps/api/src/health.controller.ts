@@ -44,6 +44,9 @@ export class HealthController {
       },
       dependencies: {
         database,
+        oidc: {
+          configured: this.auth.enabled,
+        },
       },
     };
   }
