@@ -296,6 +296,7 @@ alter table public.idempotency_records enable row level security;
 alter table public.audit_logs enable row level security;
 
 create policy app_users_self_read on public.app_users for select using (id = private.current_user_id());
+create policy app_users_self_insert on public.app_users for insert with check (id = private.current_user_id());
 create policy app_users_self_update on public.app_users for update using (id = private.current_user_id()) with check (id = private.current_user_id());
 
 create policy households_member_read on public.households for select using (private.is_household_member(id));
