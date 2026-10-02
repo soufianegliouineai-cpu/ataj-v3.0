@@ -199,6 +199,39 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.equal(timelineItem.task.id, first.body.data.persistence.taskId);
   assert.equal(timelineItem.deadline.dueAt, '2028-12-31');
 
+  const completed = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/tasks/${first.body.data.persistence.taskId}/complete`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  assert.equal(completed.body.data.status, 'completed');
+  assert.equal(completed.body.data.deadlineStatus, 'completed');
+  assert.equal(completed.body.data.obligationStatus, 'completed');
+  assert.equal(completed.body.data.replayed, false);
+  assert.ok(completed.body.data.completedAt);
+
+  const completionReplay = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/tasks/${first.body.data.persistence.taskId}/complete`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  assert.equal(completionReplay.body.data.replayed, true);
+  assert.equal(completionReplay.body.data.completedAt, completed.body.data.completedAt);
+
+  const completedTimeline = await request(app.getHttpServer())
+    .get(`/v1/households/${householdId}/timeline`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  const completedItem = completedTimeline.body.data.items.find(
+    (item: { task: { id: string } | null }) =>
+      item.task?.id === first.body.data.persistence.taskId,
+  );
+  assert.ok(completedItem);
+  assert.equal(completedItem.task.status, 'completed');
+  assert.equal(completedItem.deadline.status, 'completed');
+  assert.equal(completedItem.obligation.status, 'completed');
+
   const outsiderToken = await signToken(outsiderId);
   const denied = await request(app.getHttpServer())
     .post(`/v1/households/${householdId}/protection/expiry`)
@@ -220,6 +253,12 @@ test('authenticated HTTP flow creates household and persists protection graph', 
     .set('Authorization', `Bearer ${outsiderToken}`)
     .expect(404);
   assert.equal(outsiderTimeline.body.error.code, 'HOUSEHOLD_NOT_FOUND');
+
+  const outsiderCompleteTask = await request(app.getHttpServer())
+    .post(`/v1/households/${householdId}/tasks/${first.body.data.persistence.taskId}/complete`)
+    .set('Authorization', `Bearer ${outsiderToken}`)
+    .expect(404);
+  assert.equal(outsiderCompleteTask.body.error.code, 'TASK_NOT_FOUND');
 
   const hiddenPeople = await request(app.getHttpServer())
     .get(`/v1/households/${householdId}/people`)
