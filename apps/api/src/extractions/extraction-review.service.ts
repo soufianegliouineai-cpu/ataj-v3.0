@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { PoolClient } from 'pg';
 import type { LifeOSIdentity } from '../auth/auth.types.js';
 import { DatabaseService } from '../database/database.service.js';
 
@@ -209,6 +210,16 @@ export class ExtractionReviewService {
 
       const existingFact = existing.rows[0];
       if (existingFact) {
+        const protection = await this.ensureExpiryProtection(
+          client,
+          identity,
+          householdId,
+          field,
+          existingFact.document_id,
+          existingFact.id,
+          requestId,
+        );
+
         return {
           replayed: true,
           trustClass: 'USER_CONFIRMED',
@@ -217,6 +228,7 @@ export class ExtractionReviewService {
           fieldKey: existingFact.field_key,
           normalizedValue: existingFact.normalized_value,
           provenance: existingFact.provenance,
+          protection,
         };
       }
 
@@ -307,6 +319,16 @@ export class ExtractionReviewService {
         [fieldId],
       );
 
+      const protection = await this.ensureExpiryProtection(
+        client,
+        identity,
+        householdId,
+        field,
+        documentId,
+        factId,
+        requestId,
+      );
+
       await client.query(
         `insert into public.audit_logs(
            household_id,
@@ -329,6 +351,7 @@ export class ExtractionReviewService {
             documentId,
             fieldKey: field.field_key,
             originalConfidence: Number(field.confidence),
+            deterministicProtectionCreated: Boolean(protection),
           }),
         ],
       );
@@ -341,8 +364,220 @@ export class ExtractionReviewService {
         fieldKey: field.field_key,
         normalizedValue: field.normalized_value,
         provenance,
+        protection,
       };
     });
+  }
+
+  private async ensureExpiryProtection(
+    client: PoolClient,
+    identity: LifeOSIdentity,
+    householdId: string,
+    field: ExtractionRunRow & ExtractedFieldRow,
+    documentId: string,
+    factId: string,
+    requestId: string,
+  ) {
+    if (field.field_key !== 'expiry_date' || !isIsoDate(field.normalized_value)) {
+      return null;
+    }
+
+    const dueAt = field.normalized_value;
+    const preparationLeadDays = 90;
+    const recommendedActionAt = shiftDays(dueAt, -preparationLeadDays);
+    const today = utcToday();
+    const daysRemaining = dateDiffDays(today, dueAt);
+    const expired = daysRemaining < 0;
+    const actionDue = recommendedActionAt <= today;
+    const obligationStatus = actionDue ? 'action_due' : 'protected';
+    const deadlineStatus = expired ? 'overdue' : actionDue ? 'action_due' : 'protected';
+    const taskStatus = actionDue ? 'action_due' : 'ready';
+    const documentLabel = humanizeDocumentType(field.document_type);
+
+    let obligation = await client.query<{ id: string }>(
+      `select id
+       from public.obligations
+       where source_fact_id=$1
+         and obligation_type='EXPIRY_PROTECTION'
+       limit 1`,
+      [factId],
+    );
+
+    if (!obligation.rows[0]) {
+      const created = await client.query<{ id: string }>(
+        `insert into public.obligations(
+           household_id,
+           person_id,
+           source_document_id,
+           source_fact_id,
+           obligation_type,
+           title,
+           status,
+           confidence,
+           rule_code,
+           created_by
+         )
+         values ($1,$2,$3,$4,'EXPIRY_PROTECTION',$5,$6,1,'generic_expiry_protection_v1',$7)
+         on conflict (source_fact_id, obligation_type)
+           where source_fact_id is not null
+         do nothing
+         returning id`,
+        [
+          householdId,
+          field.owner_person_id,
+          documentId,
+          factId,
+          `${documentLabel} expiry protection`,
+          obligationStatus,
+          identity.userId,
+        ],
+      );
+
+      if (created.rows[0]) {
+        obligation = created;
+      } else {
+        obligation = await client.query<{ id: string }>(
+          `select id
+           from public.obligations
+           where source_fact_id=$1
+             and obligation_type='EXPIRY_PROTECTION'
+           limit 1`,
+          [factId],
+        );
+      }
+    }
+
+    const obligationId = obligation.rows[0]?.id;
+    if (!obligationId) {
+      throw new Error('Failed to create deterministic expiry obligation.');
+    }
+
+    let deadline = await client.query<{ id: string }>(
+      `select id
+       from public.deadlines
+       where obligation_id=$1
+       order by created_at
+       limit 1`,
+      [obligationId],
+    );
+
+    if (!deadline.rows[0]) {
+      deadline = await client.query<{ id: string }>(
+        `insert into public.deadlines(
+           household_id,
+           obligation_id,
+           due_at,
+           recommended_action_at,
+           severity,
+           status,
+           source
+         )
+         values ($1,$2,$3,$4,$5,$6,'document_fact.expiry_date')
+         returning id`,
+        [
+          householdId,
+          obligationId,
+          dueAt,
+          recommendedActionAt,
+          severityFor(daysRemaining),
+          deadlineStatus,
+        ],
+      );
+    }
+
+    const deadlineId = deadline.rows[0]?.id;
+    if (!deadlineId) {
+      throw new Error('Failed to create deterministic expiry deadline.');
+    }
+
+    let task = await client.query<{ id: string }>(
+      `select id
+       from public.tasks
+       where deadline_id=$1
+         and created_by=$2
+       order by created_at
+       limit 1`,
+      [deadlineId, identity.userId],
+    );
+
+    if (!task.rows[0]) {
+      task = await client.query<{ id: string }>(
+        `insert into public.tasks(
+           household_id,
+           deadline_id,
+           created_by,
+           assigned_to_user_id,
+           title,
+           status,
+           due_at
+         )
+         values ($1,$2,$3,$3,$4,$5,$6)
+         returning id`,
+        [
+          householdId,
+          deadlineId,
+          identity.userId,
+          expired
+            ? `Review expired ${documentLabel.toLowerCase()}`
+            : `Prepare ${documentLabel.toLowerCase()}`,
+          taskStatus,
+          recommendedActionAt,
+        ],
+      );
+    }
+
+    const taskId = task.rows[0]?.id;
+    if (!taskId) {
+      throw new Error('Failed to create deterministic expiry task.');
+    }
+
+    await client.query(
+      `insert into public.audit_logs(
+         household_id,
+         actor_user_id,
+         action,
+         entity_type,
+         entity_id,
+         request_id,
+         metadata
+       )
+       values ($1,$2,'expiry_protection.ensured','obligation',$3,$4,$5::jsonb)`,
+      [
+        householdId,
+        identity.userId,
+        obligationId,
+        requestId,
+        JSON.stringify({
+          sourceFactId: factId,
+          documentId,
+          dueAt,
+          recommendedActionAt,
+          preparationLeadDays,
+          ruleCode: 'generic_expiry_protection_v1',
+          deterministic: true,
+          jurisdictional: false,
+          legalRuleApplied: false,
+        }),
+      ],
+    );
+
+    return {
+      obligationId,
+      deadlineId,
+      taskId,
+      dueAt,
+      recommendedActionAt,
+      daysRemaining,
+      severity: severityFor(daysRemaining),
+      status: obligationStatus,
+      rule: {
+        code: 'generic_expiry_protection_v1',
+        deterministic: true,
+        jurisdictional: false,
+        legalRuleApplied: false,
+        preparationLeadDays,
+      },
+    };
   }
 
   private async requireHousehold(
@@ -380,4 +615,47 @@ export class ExtractionReviewService {
       createdAt: field.created_at,
     };
   }
+}
+
+function isIsoDate(value: string | null): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
+function shiftDays(iso: string, days: number) {
+  const date = new Date(iso + 'T00:00:00Z');
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function utcToday() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+    .toISOString()
+    .slice(0, 10);
+}
+
+function dateDiffDays(fromIso: string, toIso: string) {
+  const from = Date.parse(fromIso + 'T00:00:00Z');
+  const to = Date.parse(toIso + 'T00:00:00Z');
+  return Math.floor((to - from) / 86_400_000);
+}
+
+function severityFor(daysRemaining: number) {
+  if (daysRemaining < 0) return 'overdue';
+  if (daysRemaining <= 7) return 'critical';
+  if (daysRemaining <= 30) return 'urgent';
+  if (daysRemaining <= 90) return 'important';
+  return 'normal';
+}
+
+function humanizeDocumentType(value: string) {
+  return value
+    .split('_')
+    .map((part) => part ? part[0]!.toUpperCase() + part.slice(1) : part)
+    .join(' ');
 }
