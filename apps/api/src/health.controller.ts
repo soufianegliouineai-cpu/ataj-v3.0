@@ -49,7 +49,8 @@ export class HealthController {
         uploadMetadata: database.ok ? 'ready' : database.enabled ? 'degraded' : 'not_configured',
         byteTransport: this.storage.configured ? 'ready' : 'not_configured',
         malwareScanning: 'not_configured',
-        ocrExtraction: 'not_enabled',
+        extractionReview: database.ok ? 'ready' : database.enabled ? 'degraded' : 'not_configured',
+        ocrExtraction: 'not_configured',
         jurisdictionRules: 'not_enabled',
       },
       dependencies: {
