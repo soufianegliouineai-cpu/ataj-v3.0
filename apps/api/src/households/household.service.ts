@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { LifeOSIdentity } from '../auth/auth.types.js';
 import { DatabaseService } from '../database/database.service.js';
@@ -31,26 +32,34 @@ export class HouseholdService {
         [identity.userId, email, displayName],
       );
 
+      const householdId = crypto.randomUUID();
+
+      await client.query(
+        `insert into public.households(id, name, home_jurisdiction, created_by)
+         values ($1, $2, $3, $4)`,
+        [householdId, input.name.trim(), input.homeJurisdiction?.trim() || null, identity.userId],
+      );
+
+      await client.query(
+        `insert into public.household_members(household_id, user_id, role, status)
+         values ($1, $2, 'owner', 'active')`,
+        [householdId, identity.userId],
+      );
+
       const household = await client.query<{
         id: string;
         name: string;
         home_jurisdiction: string | null;
         created_at: string;
       }>(
-        `insert into public.households(name, home_jurisdiction, created_by)
-         values ($1, $2, $3)
-         returning id, name, home_jurisdiction, created_at::text`,
-        [input.name.trim(), input.homeJurisdiction?.trim() || null, identity.userId],
+        `select id, name, home_jurisdiction, created_at::text
+         from public.households
+         where id = $1`,
+        [householdId],
       );
 
       const row = household.rows[0];
-      if (!row) throw new Error('Failed to create household');
-
-      await client.query(
-        `insert into public.household_members(household_id, user_id, role, status)
-         values ($1, $2, 'owner', 'active')`,
-        [row.id, identity.userId],
-      );
+      if (!row) throw new Error('Failed to read created household');
 
       return {
         id: row.id,
