@@ -12,6 +12,40 @@ export class HouseholdService {
     return this.database.enabled;
   }
 
+  async list(userId: string) {
+    return this.database.withUserTransaction(userId, async (client) => {
+      const result = await client.query<{
+        id: string;
+        name: string;
+        home_jurisdiction: string | null;
+        created_at: string;
+        role: string;
+      }>(
+        `select
+           h.id,
+           h.name,
+           h.home_jurisdiction,
+           h.created_at::text,
+           coalesce(hm.role, case when h.created_by = $1 then 'owner' else 'adult' end) as role
+         from public.households h
+         left join public.household_members hm
+           on hm.household_id = h.id
+          and hm.user_id = $1
+          and hm.status = 'active'
+         order by h.created_at desc, h.id`,
+        [userId],
+      );
+
+      return result.rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        homeJurisdiction: row.home_jurisdiction,
+        createdAt: row.created_at,
+        role: row.role,
+      }));
+    });
+  }
+
   async create(identity: LifeOSIdentity, input: CreateHouseholdDto) {
     return this.database.withUserTransaction(identity.userId, async (client) => {
       const email = typeof identity.claims.email === 'string'
