@@ -10,6 +10,7 @@ interface TimelineRow {
   obligation_id: string;
   obligation_type: string;
   obligation_title: string;
+  obligation_status: string;
   document_id: string | null;
   document_type: string | null;
   document_title: string | null;
@@ -50,6 +51,7 @@ export class TimelineService {
            o.id as obligation_id,
            o.obligation_type,
            o.title as obligation_title,
+           o.status as obligation_status,
            d.id as document_id,
            d.document_type,
            d.title as document_title,
@@ -79,6 +81,7 @@ export class TimelineService {
             id: row.obligation_id,
             type: row.obligation_type,
             title: row.obligation_title,
+            status: row.obligation_status,
           },
           document: row.document_id
             ? {
