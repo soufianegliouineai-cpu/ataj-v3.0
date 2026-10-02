@@ -9,6 +9,7 @@ export const SUPPORTED_DOCUMENT_TYPES = [
   'residence_permit',
   'vehicle_registration',
   'contract',
+  'invoice',
   'certificate',
   'other',
 ] as const;
