@@ -88,20 +88,11 @@ export class ProtectionRepository {
         });
       }
 
-      const policyContext = await client.query<{
-        user_id: string | null;
-        is_member: boolean;
-      }>(
-        `select
-           private.current_user_id()::text as user_id,
-           private.is_household_member($1)::boolean as is_member`,
-        [input.householdId],
+      const policyContext = await client.query<{ user_id: string | null }>(
+        `select private.current_user_id()::text as user_id`,
       );
 
-      if (
-        policyContext.rows[0]?.user_id !== input.userId
-        || policyContext.rows[0]?.is_member !== true
-      ) {
+      if (policyContext.rows[0]?.user_id !== input.userId) {
         throw new Error('RLS identity context changed before document persistence');
       }
 
