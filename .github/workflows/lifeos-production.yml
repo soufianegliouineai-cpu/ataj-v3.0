@@ -15,6 +15,20 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lifeos_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lifeos_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,6 +38,20 @@ jobs:
         run: npm test
       - name: Static production build validation
         run: npm run build
+      - name: Install PostgreSQL client
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client
+          fi
+          psql --version
+      - name: Validate LifeOS schema and RLS on PostgreSQL 17
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lifeos_ci -f supabase/tests/bootstrap_plain_postgres.sql
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lifeos_ci -f supabase/migrations/0001_lifeos_core.sql
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lifeos_ci -f supabase/tests/rls_smoke.sql
       - name: Verify live production API
         run: |
           python - <<'PY'
