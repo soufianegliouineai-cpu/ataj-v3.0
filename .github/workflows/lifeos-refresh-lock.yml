@@ -1,0 +1,33 @@
+name: LifeOS Refresh API Lock
+
+on:
+  push:
+    branches:
+      - lifeos-production-bootstrap
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: lifeos-production-bootstrap
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Refresh lockfile only
+        run: npm install --prefix apps/api --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Commit lockfile if changed
+        run: |
+          if git diff --quiet -- apps/api/package-lock.json; then
+            echo "Lockfile already current"
+            exit 0
+          fi
+          git config user.name "lifeos-ci"
+          git config user.email "lifeos-ci@users.noreply.github.com"
+          git add apps/api/package-lock.json
+          git commit -m "chore(api): refresh PostgreSQL dependency lock"
+          git push origin HEAD:lifeos-production-bootstrap
