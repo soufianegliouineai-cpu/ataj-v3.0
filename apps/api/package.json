@@ -26,6 +26,7 @@
     "@types/node": "24.19.0",
     "@types/supertest": "6.0.3",
     "supertest": "7.1.4",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "@types/express": "5.0.6"
   }
 }
