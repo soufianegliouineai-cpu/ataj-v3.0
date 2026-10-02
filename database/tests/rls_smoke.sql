@@ -113,7 +113,7 @@ begin
   if (select count(*) from public.document_uploads where id='80000000-0000-0000-0000-000000000001') <> 0 then
     raise exception 'private upload metadata leaked to household member';
   end if;
-end $;
+end $$;
 
 insert into public.document_uploads(
   id,household_id,owner_user_id,document_type,original_filename,
@@ -129,21 +129,21 @@ insert into public.document_uploads(
   'households/10000000-0000-0000-0000-000000000001/users/00000000-0000-0000-0000-000000000002/uploads/80000000-0000-0000-0000-000000000002/source.pdf'
 );
 
-do $
+do $$
 begin
   if (select count(*) from public.document_uploads where id='80000000-0000-0000-0000-000000000002') <> 1 then
     raise exception 'household member cannot create or read own upload intent';
   end if;
-end $;
+end $$;
 
 select set_config('lifeos.user_id','00000000-0000-0000-0000-000000000001',false);
 
-do $
+do $$
 begin
   if (select count(*) from public.document_uploads) <> 1 then
     raise exception 'upload metadata leaked across household users';
   end if;
-end $;
+end $$;
 
 insert into public.document_shares(document_id,user_id,can_edit) values (
   '30000000-0000-0000-0000-000000000001',
@@ -182,9 +182,9 @@ begin
   if (select count(*) from public.document_uploads) <> 0 then
     raise exception 'outsider can read upload metadata';
   end if;
-end $;
+end $$;
 
-do $
+do $$
 begin
   begin
     insert into public.document_uploads(
@@ -203,7 +203,7 @@ begin
   exception when insufficient_privilege then
     null;
   end;
-end $;
+end $$;
 
 reset role;
 select 'LifeOS provider-neutral RLS smoke tests passed' as result;
