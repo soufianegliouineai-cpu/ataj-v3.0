@@ -191,9 +191,15 @@ test('RLS prevents an outsider from persisting into another household', { skip: 
       result,
     }),
     (error: unknown) => {
-      const value = error as { getResponse?: () => unknown };
+      const value = error as {
+        getStatus?: () => number;
+        getResponse?: () => unknown;
+        response?: { code?: string };
+      };
       const response = value.getResponse?.() as { code?: string } | undefined;
-      return response?.code === 'HOUSEHOLD_NOT_FOUND';
+      return value.getStatus?.() === 404
+        && (response?.code === 'HOUSEHOLD_NOT_FOUND'
+          || value.response?.code === 'HOUSEHOLD_NOT_FOUND');
     },
   );
 
@@ -205,5 +211,23 @@ test('RLS prevents an outsider from persisting into another household', { skip: 
     return rows.rows[0]?.count ?? 0;
   });
 
-  assert.equal(idempotencyRows, 0, 'failed graph transaction must roll back idempotency placeholder too');
+  assert.equal(idempotencyRows, 0, 'hidden-resource rejection must not leave an idempotency placeholder');
+});
+
+test('PostgreSQL RLS independently denies outsider document insertion', { skip: !enabled }, async () => {
+  await assert.rejects(
+    () => database.withUserTransaction(outsiderId, async (client) => {
+      await client.query(
+        `insert into public.documents(
+           household_id, owner_user_id, document_type, title, status, sensitivity
+         )
+         values ($1, $2, 'insurance', 'Unauthorized document', 'active', 'high')`,
+        [householdId, outsiderId],
+      );
+    }),
+    (error: unknown) => {
+      const value = error as { code?: string };
+      return value.code === '42501';
+    },
+  );
 });
