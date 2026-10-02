@@ -351,6 +351,27 @@
           }
         }
       }
+    },
+    "/home": {
+      "get": {
+        "operationId": "getHomeSummary",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "RLS-filtered LifeOS home status, coverage, counts and upcoming tasks"
+          },
+          "401": {
+            "description": "Bearer token missing or invalid"
+          },
+          "503": {
+            "description": "Persistence not configured"
+          }
+        }
+      }
     }
   },
   "components": {
