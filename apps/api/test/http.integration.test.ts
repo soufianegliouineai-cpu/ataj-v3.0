@@ -16,6 +16,7 @@ import {
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/configure-app.js';
+import { DocumentProcessingWorkerService } from '../src/processing/document-processing-worker.service.js';
 
 const enabled = Boolean(process.env.DATABASE_URL);
 const issuer = 'https://integration.issuer.lifeos.test';
@@ -34,6 +35,7 @@ let jwk: JWK;
 let integrationBaseUrl = '';
 let ocrPollCount = 0;
 let lastOcrRequestSha256: string | null = null;
+let processingWorker: DocumentProcessingWorkerService;
 
 before(async () => {
   if (!enabled) return;
@@ -154,10 +156,15 @@ before(async () => {
   process.env.OCR_POLL_INTERVAL_MS = '10';
   process.env.OCR_TIMEOUT_MS = '5000';
 
+  if (!process.env.WORKER_DATABASE_URL && process.env.DATABASE_URL) {
+    process.env.WORKER_DATABASE_URL = process.env.DATABASE_URL;
+  }
+
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   app = moduleRef.createNestApplication();
   configureApp(app);
   await app.init();
+  processingWorker = app.get(DocumentProcessingWorkerService);
 });
 
 after(async () => {
@@ -210,6 +217,8 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.equal(readiness.body.capabilities.malwareScanning, 'ready');
   assert.equal(readiness.body.capabilities.ocrExtraction, 'ready');
   assert.equal(readiness.body.capabilities.documentProcessing, 'ready');
+  assert.equal(readiness.body.capabilities.processingQueue, 'ready');
+  assert.equal(readiness.body.capabilities.processingWorker, 'ready');
 
   const created = await request(app.getHttpServer())
     .post('/v1/households')
@@ -333,22 +342,48 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.equal(scanReplay.body.data.status, 'clean');
   assert.equal(scanReplay.body.data.actualSha256, uploadSha256);
 
-  const processed = await request(app.getHttpServer())
+  const queued = await request(app.getHttpServer())
     .post(`/v1/households/${householdId}/uploads/${uploadIntent.body.data.id}/process`)
     .set('Authorization', `Bearer ${token}`)
-    .expect(201);
+    .expect(202);
 
-  assert.equal(processed.body.data.status, 'succeeded');
-  assert.equal(processed.body.data.replayed, false);
-  assert.equal(processed.body.data.sourceIntegrity.sha256, uploadSha256);
-  assert.equal(processed.body.data.sourceIntegrity.sizeBytes, uploadBytes.length);
-  assert.equal(processed.body.data.sourceIntegrity.reverifiedBeforeOcr, true);
-  assert.equal(processed.body.data.engine.provider, 'azure_document_intelligence');
-  assert.equal(processed.body.data.engine.modelName, 'prebuilt-idDocument');
-  assert.equal(processed.body.data.engine.apiVersion, '2024-11-30');
-  assert.equal(processed.body.data.fieldCount, 2);
+  assert.equal(queued.body.data.status, 'queued');
+  assert.equal(queued.body.data.replayed, false);
+  assert.equal(queued.body.data.attemptCount, 0);
+  assert.equal(queued.body.meta.execution, 'durable_postgres_queue');
+
+  const queuedStatus = await request(app.getHttpServer())
+    .get(`/v1/households/${householdId}/uploads/${uploadIntent.body.data.id}/process`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  assert.equal(queuedStatus.body.data.status, 'queued');
+  assert.equal(queuedStatus.body.data.extractionRunId, null);
+
+  const workerResult = await processingWorker.runOnce();
+  assert.equal(workerResult.claimed, true);
+  assert.equal(workerResult.status, 'succeeded');
+  if (!workerResult.claimed || workerResult.status !== 'succeeded') {
+    throw new Error('Durable processing worker did not succeed.');
+  }
+  assert.equal(workerResult.sourceIntegrity.sha256, uploadSha256);
+  assert.equal(workerResult.sourceIntegrity.sizeBytes, uploadBytes.length);
+  assert.equal(workerResult.sourceIntegrity.reverifiedBeforeOcr, true);
+  assert.equal(workerResult.engine.provider, 'azure_document_intelligence');
+  assert.equal(workerResult.engine.modelName, 'prebuilt-idDocument');
+  assert.equal(workerResult.engine.apiVersion, '2024-11-30');
+  assert.equal(workerResult.fieldCount, 2);
   assert.equal(lastOcrRequestSha256, uploadSha256);
   assert.ok(ocrPollCount >= 2);
+
+  const processed = await request(app.getHttpServer())
+    .get(`/v1/households/${householdId}/uploads/${uploadIntent.body.data.id}/process`)
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  assert.equal(processed.body.data.status, 'succeeded');
+  assert.equal(processed.body.data.attemptCount, 1);
+  assert.equal(processed.body.meta.execution, 'durable_postgres_queue');
 
   const extractionRunId = processed.body.data.extractionRunId as string;
   assert.match(extractionRunId, /^[0-9a-f-]{36}$/i);
@@ -437,9 +472,10 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   const processingReplay = await request(app.getHttpServer())
     .post(`/v1/households/${householdId}/uploads/${uploadIntent.body.data.id}/process`)
     .set('Authorization', `Bearer ${token}`)
-    .expect(201);
+    .expect(202);
 
   assert.equal(processingReplay.body.data.replayed, true);
+  assert.equal(processingReplay.body.data.status, 'succeeded');
   assert.equal(processingReplay.body.data.extractionRunId, extractionRunId);
 
   const eicarBytes = Buffer.from([
