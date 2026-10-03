@@ -191,30 +191,41 @@ async function seedExpiredRunningJob(input: {
 
 async function fetchSnapshot(jobId: string, uploadId: string) {
   if (!pool) throw new Error('DATABASE_URL is required');
-  const result = await pool.query<{
-    job_status: string;
-    attempt_count: number;
-    last_error_code: string | null;
-    lease_owner: string | null;
-    lease_expires_at: string | null;
-    next_attempt_at: string;
-    upload_status: string;
-  }>(
-    `select
-       j.status as job_status,
-       j.attempt_count,
-       j.last_error_code,
-       j.lease_owner::text,
-       j.lease_expires_at::text,
-       j.next_attempt_at::text,
-       u.status as upload_status
-     from public.document_processing_jobs j
-     join public.document_uploads u on u.id=j.upload_id
-     where j.id=$1 and u.id=$2`,
-    [jobId, uploadId],
-  );
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    await client.query('set local role lifeos_worker');
+    const result = await client.query<{
+      job_status: string;
+      attempt_count: number;
+      last_error_code: string | null;
+      lease_owner: string | null;
+      lease_expires_at: string | null;
+      next_attempt_at: string;
+      upload_status: string;
+    }>(
+      `select
+         j.status as job_status,
+         j.attempt_count,
+         j.last_error_code,
+         j.lease_owner::text,
+         j.lease_expires_at::text,
+         j.next_attempt_at::text,
+         u.status as upload_status
+       from public.document_processing_jobs j
+       join public.document_uploads u on u.id=j.upload_id
+       where j.id=$1 and u.id=$2`,
+      [jobId, uploadId],
+    );
+    await client.query('commit');
 
-  const row = result.rows[0];
-  if (!row) throw new Error('lease recovery fixture snapshot not found');
-  return row;
+    const row = result.rows[0];
+    if (!row) throw new Error('lease recovery fixture snapshot not found');
+    return row;
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
