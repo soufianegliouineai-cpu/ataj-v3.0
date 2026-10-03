@@ -1,3 +1,8 @@
+-- CI-only privilege bridge: production uses a distinct worker login that is a
+-- member of lifeos_worker. The integration suite reuses lifeos_app to avoid
+-- storing a second credential in source while still exercising SET ROLE.
+grant lifeos_worker to lifeos_app;
+
 insert into public.app_users(id,email,display_name) values
   ('00000000-0000-0000-0000-000000000011','integration-owner@example.test','Integration Owner'),
   ('00000000-0000-0000-0000-000000000012','integration-outsider@example.test','Integration Outsider')
