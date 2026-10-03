@@ -28,6 +28,13 @@ text = require_replace(
 
 text = require_replace(
     text,
+    "  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();\n",
+    "  if (!process.env.WORKER_DATABASE_URL && process.env.DATABASE_URL) {\n    process.env.WORKER_DATABASE_URL = process.env.DATABASE_URL;\n  }\n\n  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();\n",
+    'worker test database setup',
+)
+
+text = require_replace(
+    text,
     "  configureApp(app);\n  await app.init();\n",
     "  configureApp(app);\n  await app.init();\n  processingWorker = app.get(DocumentProcessingWorkerService);\n",
     'worker initialization',
@@ -129,13 +136,3 @@ new_replay = """  const processingReplay = await request(app.getHttpServer())
 text = require_replace(text, old_replay, new_replay, 'processing replay')
 
 test_path.write_text(text)
-
-workflow_path = Path('.github/workflows/lifeos-production.yml')
-flow = workflow_path.read_text()
-flow = require_replace(
-    flow,
-    '          MALWARE_SCAN_MAX_BYTES: "26214400"\n        run: npm run test:integration --prefix apps/api\n',
-    '          MALWARE_SCAN_MAX_BYTES: "26214400"\n          PGPASSWORD: postgres\n        run: |\n          export WORKER_DATABASE_URL="postgresql://postgres:${PGPASSWORD}@127.0.0.1:5432/lifeos_ci"\n          npm run test:integration --prefix apps/api\n',
-    'worker database CI environment',
-)
-workflow_path.write_text(flow)
