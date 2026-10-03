@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import type { SupportedDocumentType } from '../constants.js';
 import { WorkerDatabaseService } from '../database/worker-database.service.js';
@@ -23,6 +23,7 @@ interface ClaimedJob {
   actualSizeBytes: number;
   actualSha256: string;
   attemptCount: number;
+  leaseOwner: string;
 }
 
 class SourceIntegrityError extends Error {
@@ -32,8 +33,32 @@ class SourceIntegrityError extends Error {
   }
 }
 
+class LeaseLostError extends Error {
+  constructor() {
+    super('Processing job worker lease was lost or expired.');
+    this.name = 'LeaseLostError';
+  }
+}
+
 @Injectable()
 export class DocumentProcessingWorkerService {
+  private readonly workerId = randomUUID();
+  private readonly ocrTimeoutMs = parsePositiveInt(process.env.OCR_TIMEOUT_MS, 60_000);
+  private readonly leaseMs = Math.max(
+    parsePositiveInt(process.env.WORKER_LEASE_MS, 180_000),
+    this.ocrTimeoutMs + 60_000,
+  );
+  private readonly recoveryBatchSize = clampInt(
+    parsePositiveInt(process.env.WORKER_RECOVERY_BATCH_SIZE, 20),
+    1,
+    100,
+  );
+  private readonly retryBaseMs = clampInt(
+    parsePositiveInt(process.env.WORKER_RETRY_BASE_MS, 5_000),
+    1_000,
+    300_000,
+  );
+
   constructor(
     private readonly database: WorkerDatabaseService,
     private readonly storage: ObjectStorageService,
@@ -44,7 +69,78 @@ export class DocumentProcessingWorkerService {
     return this.database.enabled && this.storage.configured && this.ocr.configured;
   }
 
+  get capability() {
+    return {
+      configured: this.configured,
+      leaseMs: this.leaseMs,
+      retryBaseMs: this.retryBaseMs,
+      recoveryBatchSize: this.recoveryBatchSize,
+    };
+  }
+
   async runOnce() {
+    this.assertConfigured();
+
+    const recovered = await this.recoverStaleLeases();
+    const job = await this.claimNext();
+    if (!job) {
+      return {
+        claimed: false,
+        status: 'idle' as const,
+        recovered,
+      };
+    }
+
+    try {
+      const source = await this.readVerifiedSource(job);
+      await this.renewLease(job);
+
+      const analysis = await this.ocr.analyze(
+        source.bytes,
+        job.mimeType,
+        job.documentType,
+      );
+
+      const result = await this.persistSucceededAnalysis(
+        job,
+        analysis,
+        source.sha256,
+        source.sizeBytes,
+      );
+
+      return { claimed: true, recovered, ...result };
+    } catch (error) {
+      if (error instanceof LeaseLostError) {
+        return {
+          claimed: true,
+          recovered,
+          processingJobId: job.jobId,
+          uploadId: job.uploadId,
+          status: 'lease_lost' as const,
+          errorCode: 'WORKER_LEASE_LOST',
+        };
+      }
+
+      const code = error instanceof OcrProviderError
+        ? error.ocrCode
+        : error instanceof SourceIntegrityError
+          ? error.integrityCode
+          : 'PROCESSING_PIPELINE_ERROR';
+
+      const failed = await this.failProcessing(job, code);
+
+      return {
+        claimed: true,
+        recovered,
+        processingJobId: job.jobId,
+        uploadId: job.uploadId,
+        status: failed ? 'failed' as const : 'lease_lost' as const,
+        errorCode: failed ? code : 'WORKER_LEASE_LOST',
+      };
+    }
+  }
+
+  private assertConfigured() {
     if (!this.database.enabled) {
       throw new ServiceUnavailableException({
         code: 'WORKER_DATABASE_NOT_CONFIGURED',
@@ -63,38 +159,116 @@ export class DocumentProcessingWorkerService {
         message: 'OCR extraction is not configured for the worker.',
       });
     }
+  }
 
-    const job = await this.claimNext();
-    if (!job) {
-      return { claimed: false, status: 'idle' as const };
-    }
-
-    try {
-      const source = await this.readVerifiedSource(job);
-      const analysis = await this.ocr.analyze(
-        source.bytes,
-        job.mimeType,
-        job.documentType,
+  private async recoverStaleLeases() {
+    return this.database.withTransaction(async (client) => {
+      const stale = await client.query<{
+        id: string;
+        upload_id: string;
+        household_id: string;
+        owner_user_id: string;
+        attempt_count: number;
+        max_attempts: number;
+      }>(
+        `select id, upload_id, household_id, owner_user_id, attempt_count, max_attempts
+         from public.document_processing_jobs
+         where status='running'
+           and lease_expires_at is not null
+           and lease_expires_at < now()
+         order by lease_expires_at, id
+         for update skip locked
+         limit $1`,
+        [this.recoveryBatchSize],
       );
-      const result = await this.persistSucceededAnalysis(job, analysis, source.sha256, source.sizeBytes);
-      return { claimed: true, ...result };
-    } catch (error) {
-      const code = error instanceof OcrProviderError
-        ? error.ocrCode
-        : error instanceof SourceIntegrityError
-          ? error.integrityCode
-          : 'PROCESSING_PIPELINE_ERROR';
 
-      await this.failProcessing(job, code);
+      let requeued = 0;
+      let exhausted = 0;
+
+      for (const row of stale.rows) {
+        await client.query(
+          `update public.document_processing_jobs
+           set status='failed',
+               last_error_code='WORKER_LEASE_EXPIRED',
+               last_error_message='Worker lease expired before processing completed.'
+           where id=$1 and status='running'`,
+          [row.id],
+        );
+
+        if (row.attempt_count < row.max_attempts) {
+          const retryDelayMs = Math.min(
+            this.retryBaseMs * (2 ** Math.max(0, row.attempt_count - 1)),
+            300_000,
+          );
+
+          await client.query(
+            `update public.document_uploads
+             set status='clean', updated_at=now()
+             where id=$1 and status='processing'`,
+            [row.upload_id],
+          );
+
+          await client.query(
+            `update public.document_processing_jobs
+             set status='queued',
+                 queued_at=now(),
+                 next_attempt_at=now() + ($2::double precision * interval '1 millisecond')
+             where id=$1 and status='failed'`,
+            [row.id, retryDelayMs],
+          );
+
+          await client.query(
+            `insert into public.audit_logs(
+               household_id, actor_user_id, action, entity_type, entity_id, request_id, metadata
+             )
+             values ($1,null,'document_processing.lease_recovered','document_processing_job',$2,null,$3::jsonb)`,
+            [
+              row.household_id,
+              row.id,
+              JSON.stringify({
+                uploadId: row.upload_id,
+                ownerUserId: row.owner_user_id,
+                attemptCount: row.attempt_count,
+                maxAttempts: row.max_attempts,
+                retryDelayMs,
+              }),
+            ],
+          );
+          requeued += 1;
+        } else {
+          await client.query(
+            `update public.document_uploads
+             set status='failed', updated_at=now()
+             where id=$1 and status='processing'`,
+            [row.upload_id],
+          );
+
+          await client.query(
+            `insert into public.audit_logs(
+               household_id, actor_user_id, action, entity_type, entity_id, request_id, metadata
+             )
+             values ($1,null,'document_processing.attempts_exhausted','document_processing_job',$2,null,$3::jsonb)`,
+            [
+              row.household_id,
+              row.id,
+              JSON.stringify({
+                uploadId: row.upload_id,
+                ownerUserId: row.owner_user_id,
+                attemptCount: row.attempt_count,
+                maxAttempts: row.max_attempts,
+              }),
+            ],
+          );
+          exhausted += 1;
+        }
+      }
 
       return {
-        claimed: true,
-        processingJobId: job.jobId,
-        uploadId: job.uploadId,
-        status: 'failed' as const,
-        errorCode: code,
+        inspected: stale.rowCount ?? stale.rows.length,
+        requeued,
+        exhausted,
       };
-    }
+    });
   }
 
   private async claimNext(): Promise<ClaimedJob | null> {
@@ -128,11 +302,13 @@ export class DocumentProcessingWorkerService {
          join public.document_uploads u on u.id = j.upload_id
          where j.status='queued'
            and j.processor='azure_document_intelligence'
+           and j.next_attempt_at <= now()
+           and j.attempt_count < j.max_attempts
            and u.status='clean'
            and u.malware_status='clean'
            and u.actual_size_bytes is not null
            and u.actual_sha256 is not null
-         order by j.queued_at, j.id
+         order by j.next_attempt_at, j.queued_at, j.id
          for update of j skip locked
          limit 1`,
       );
@@ -140,12 +316,18 @@ export class DocumentProcessingWorkerService {
       const row = result.rows[0];
       if (!row) return null;
 
-      await client.query(
+      const claimed = await client.query(
         `update public.document_processing_jobs
-         set status='running'
+         set status='running',
+             lease_owner=$2,
+             lease_expires_at=now() + ($3::double precision * interval '1 millisecond')
          where id=$1 and status='queued'`,
-        [row.job_id],
+        [row.job_id, this.workerId, this.leaseMs],
       );
+
+      if (claimed.rowCount !== 1) {
+        return null;
+      }
 
       const upload = await client.query(
         `update public.document_uploads
@@ -170,6 +352,8 @@ export class DocumentProcessingWorkerService {
             uploadId: row.upload_id,
             ownerUserId: row.owner_user_id,
             worker: 'lifeos-worker',
+            workerId: this.workerId,
+            leaseMs: this.leaseMs,
           }),
         ],
       );
@@ -186,8 +370,27 @@ export class DocumentProcessingWorkerService {
         actualSizeBytes: Number(row.actual_size_bytes),
         actualSha256: row.actual_sha256,
         attemptCount: row.attempt_count + 1,
+        leaseOwner: this.workerId,
       };
     });
+  }
+
+  private async renewLease(job: ClaimedJob) {
+    const renewed = await this.database.withTransaction(async (client) => {
+      const result = await client.query(
+        `update public.document_processing_jobs
+         set lease_expires_at=now() + ($3::double precision * interval '1 millisecond'),
+             updated_at=now()
+         where id=$1
+           and status='running'
+           and lease_owner=$2
+           and lease_expires_at > now()`,
+        [job.jobId, job.leaseOwner, this.leaseMs],
+      );
+      return result.rowCount === 1;
+    });
+
+    if (!renewed) throw new LeaseLostError();
   }
 
   private async readVerifiedSource(job: ClaimedJob) {
@@ -235,6 +438,19 @@ export class DocumentProcessingWorkerService {
     sizeBytes: number,
   ) {
     return this.database.withTransaction(async (client) => {
+      const lease = await client.query<{ id: string }>(
+        `select id
+         from public.document_processing_jobs
+         where id=$1
+           and status='running'
+           and lease_owner=$2
+           and lease_expires_at > now()
+         for update`,
+        [job.jobId, job.leaseOwner],
+      );
+
+      if (!lease.rows[0]) throw new LeaseLostError();
+
       const runResult = await client.query<{ id: string }>(
         `insert into public.document_extraction_runs(
            processing_job_id,
@@ -294,12 +510,13 @@ export class DocumentProcessingWorkerService {
         );
       }
 
-      await client.query(
+      const succeeded = await client.query(
         `update public.document_processing_jobs
-         set status='succeeded', result_json=$2::jsonb
-         where id=$1 and status='running'`,
+         set status='succeeded', result_json=$3::jsonb
+         where id=$1 and status='running' and lease_owner=$2`,
         [
           job.jobId,
+          job.leaseOwner,
           JSON.stringify({
             extractionRunId: runId,
             provider: analysis.provider,
@@ -311,6 +528,8 @@ export class DocumentProcessingWorkerService {
           }),
         ],
       );
+
+      if (succeeded.rowCount !== 1) throw new LeaseLostError();
 
       await client.query(
         `update public.document_uploads
@@ -337,6 +556,7 @@ export class DocumentProcessingWorkerService {
             fieldCount: analysis.fields.length,
             sourceSha256: sha256,
             workerAttempt: job.attemptCount,
+            workerId: this.workerId,
           }),
         ],
       );
@@ -363,15 +583,20 @@ export class DocumentProcessingWorkerService {
   }
 
   private async failProcessing(job: ClaimedJob, code: string) {
-    await this.database.withTransaction(async (client) => {
-      await client.query(
+    return this.database.withTransaction(async (client) => {
+      const failed = await client.query(
         `update public.document_processing_jobs
          set status='failed',
-             last_error_code=$2,
+             last_error_code=$3,
              last_error_message='Processing failed. See structured error code.'
-         where id=$1 and status='running'`,
-        [job.jobId, code],
+         where id=$1
+           and status='running'
+           and lease_owner=$2
+           and lease_expires_at > now()`,
+        [job.jobId, job.leaseOwner, code],
       );
+
+      if (failed.rowCount !== 1) return false;
 
       await client.query(
         `update public.document_uploads
@@ -393,9 +618,21 @@ export class DocumentProcessingWorkerService {
             ownerUserId: job.ownerUserId,
             code,
             workerAttempt: job.attemptCount,
+            workerId: this.workerId,
           }),
         ],
       );
+
+      return true;
     });
   }
+}
+
+function parsePositiveInt(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function clampInt(value: number, minimum: number, maximum: number) {
+  return Math.max(minimum, Math.min(maximum, value));
 }
