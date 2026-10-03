@@ -11,7 +11,7 @@
     "build": "npm run clean && tsc -p tsconfig.build.json",
     "test": "npm run build && node --test dist/test/*.test.js",
     "verify": "npm run test",
-    "test:integration": "npm run build && node --test dist/test/database.integration.test.js dist/test/http.integration.test.js",
+    "test:integration": "npm run build && node --test dist/test/*.integration.test.js",
     "worker": "node dist/src/worker.js",
     "worker:once": "WORKER_ONCE=true node dist/src/worker.js"
   },
