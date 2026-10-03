@@ -17,7 +17,6 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/configure-app.js';
 import { DocumentProcessingWorkerService } from '../src/processing/document-processing-worker.service.js';
-import { DocumentProcessingWorkerService } from '../src/processing/document-processing-worker.service.js';
 
 const enabled = Boolean(process.env.DATABASE_URL);
 const issuer = 'https://integration.issuer.lifeos.test';
@@ -36,7 +35,6 @@ let jwk: JWK;
 let integrationBaseUrl = '';
 let ocrPollCount = 0;
 let lastOcrRequestSha256: string | null = null;
-let processingWorker: DocumentProcessingWorkerService;
 let processingWorker: DocumentProcessingWorkerService;
 
 before(async () => {
@@ -162,15 +160,10 @@ before(async () => {
     process.env.WORKER_DATABASE_URL = process.env.DATABASE_URL;
   }
 
-  if (!process.env.WORKER_DATABASE_URL && process.env.DATABASE_URL) {
-    process.env.WORKER_DATABASE_URL = process.env.DATABASE_URL;
-  }
-
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   app = moduleRef.createNestApplication();
   configureApp(app);
   await app.init();
-  processingWorker = app.get(DocumentProcessingWorkerService);
   processingWorker = app.get(DocumentProcessingWorkerService);
 });
 
@@ -224,8 +217,6 @@ test('authenticated HTTP flow creates household and persists protection graph', 
   assert.equal(readiness.body.capabilities.malwareScanning, 'ready');
   assert.equal(readiness.body.capabilities.ocrExtraction, 'ready');
   assert.equal(readiness.body.capabilities.documentProcessing, 'ready');
-  assert.equal(readiness.body.capabilities.processingQueue, 'ready');
-  assert.equal(readiness.body.capabilities.processingWorker, 'ready');
   assert.equal(readiness.body.capabilities.processingQueue, 'ready');
   assert.equal(readiness.body.capabilities.processingWorker, 'ready');
 
