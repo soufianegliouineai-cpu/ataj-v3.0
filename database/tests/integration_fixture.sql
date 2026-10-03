@@ -32,7 +32,6 @@ insert into public.people(id,household_id,display_name,relationship,created_by) 
 )
 on conflict (id) do nothing;
 
-
 insert into public.app_users(id,email,display_name) values (
   '00000000-0000-4000-8000-000000000213',
   'review-owner@example.test',
@@ -101,7 +100,9 @@ set status='processing'
 where id='30000000-0000-4000-8000-000000000213';
 
 update public.document_processing_jobs
-set status='running'
+set status='running',
+    lease_owner='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    lease_expires_at=now() + interval '5 minutes'
 where id='40000000-0000-4000-8000-000000000213';
 
 update public.document_processing_jobs
