@@ -8,7 +8,9 @@ set status='processing'
 where id='90000000-0000-0000-0000-000000000002';
 
 update public.document_processing_jobs
-set status='running', started_at=now(), attempt_count=1
+set status='running',
+    lease_owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    lease_expires_at=now() + interval '5 minutes'
 where id='91000000-0000-0000-0000-000000000001';
 
 do $$
