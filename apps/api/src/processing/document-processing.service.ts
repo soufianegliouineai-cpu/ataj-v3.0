@@ -14,7 +14,7 @@ interface ProcessingUploadRow {
   actual_sha256: string | null;
 }
 
-interface ProcessingJobRow {
+interface ProcessingJobRow extends Record<string, unknown> {
   id: string;
   status: string;
   processor: string;
