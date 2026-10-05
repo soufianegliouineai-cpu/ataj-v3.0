@@ -65,6 +65,21 @@ create policy notification_outbox_user_read
 on public.notification_outbox for select
 using (user_id = private.current_user_id());
 
+create policy deadlines_reminder_worker_read
+on public.deadlines for select
+to lifeos_worker
+using (true);
+
+create policy obligations_reminder_worker_read
+on public.obligations for select
+to lifeos_worker
+using (true);
+
+create policy tasks_reminder_worker_read
+on public.tasks for select
+to lifeos_worker
+using (true);
+
 create policy deadline_reminders_worker_read
 on public.deadline_reminders for select
 to lifeos_worker
@@ -97,6 +112,9 @@ to lifeos_worker
 using (true)
 with check (true);
 
+grant select on public.deadlines to lifeos_worker;
+grant select on public.obligations to lifeos_worker;
+grant select on public.tasks to lifeos_worker;
 grant select, insert, update on public.deadline_reminders to lifeos_worker;
 grant select, insert, update on public.notification_outbox to lifeos_worker;
 
