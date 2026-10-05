@@ -83,6 +83,21 @@ if (!String(extractionConfirmPath?.responses?.['201']?.description ?? '').includ
   failures.push('Nest extracted-field confirmation must document USER_CONFIRMED trust handoff');
 }
 
+const countryPackPath = nestOpenapi.paths?.['/country-packs/{jurisdiction}']?.get;
+if (!countryPackPath) failures.push('Nest OpenAPI missing country pack catalog');
+const countryEvaluatePath = nestOpenapi.paths?.['/country-packs/{jurisdiction}/evaluate']?.post;
+if (!countryEvaluatePath) failures.push('Nest OpenAPI missing country rule evaluator');
+if (countryPackPath?.security || countryEvaluatePath?.security) {
+  failures.push('Country rule catalog/evaluator must remain public and user-data independent');
+}
+const countrySchema = nestOpenapi.components?.schemas?.EvaluateCountryRuleRequest;
+if (!countrySchema?.properties?.documents?.items?.properties?.state?.enum?.includes('valid')) {
+  failures.push('Nest OpenAPI country evaluation schema missing document validity state');
+}
+if (!String(countryEvaluatePath?.responses?.['201']?.description ?? '').includes('does not create tasks or deadlines')) {
+  failures.push('Country evaluator contract must explicitly forbid automatic tasks/deadlines');
+}
+
 const uploadSchema = nestOpenapi.components?.schemas?.CreateUploadIntentRequest;
 if (uploadSchema?.properties?.sizeBytes?.maximum !== 26214400) {
   failures.push('Nest OpenAPI upload size limit must be 25 MiB');
@@ -93,10 +108,10 @@ for (const mime of ['application/pdf','image/jpeg','image/png','image/heic','ima
 }
 
 const description = String(nestOpenapi.info?.description ?? '');
-for (const capability of ['Azure Blob-compatible', 'ClamAV', 'OCR extraction', 'reminders', 'in-app']) {
+for (const capability of ['Azure Blob-compatible', 'ClamAV', 'OCR extraction', 'reminders', 'in-app', 'Morocco v1']) {
   if (!description.includes(capability)) failures.push(`Nest OpenAPI description missing implemented capability: ${capability}`);
 }
-for (const unconfigured of ['push/email delivery', 'jurisdiction-specific rules']) {
+for (const unconfigured of ['push/email delivery', 'automatic country-rule actions/deadlines']) {
   if (!description.includes(unconfigured)) failures.push(`Nest OpenAPI description must state unconfigured boundary: ${unconfigured}`);
 }
 
@@ -129,4 +144,4 @@ if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);
 }
-console.log('LifeOS static, Edge OpenAPI, and Nest OpenAPI contracts validated');
+console.log('LifeOS static, Edge OpenAPI, Nest OpenAPI, reminders, ingestion, and country-rule contracts validated');
