@@ -54,8 +54,6 @@ create policy country_rule_versions_public_read
 on public.country_rule_versions for select
 using (status='active');
 
-grant select on public.official_sources to lifeos_app;
-grant select on public.country_rule_versions to lifeos_app;
 grant select on public.official_sources to lifeos_worker;
 grant select on public.country_rule_versions to lifeos_worker;
 
