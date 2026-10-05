@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module.js';
+import { CountryRuleModule } from './country-rules/country-rule.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health.controller.js';
 import { HomeModule } from './home/home.module.js';
@@ -17,7 +18,7 @@ import { UploadModule } from './uploads/upload.module.js';
 import { ObjectStorageModule } from './storage/object-storage.module.js';
 
 @Module({
-  imports: [AuthModule, DatabaseModule, ObjectStorageModule, MalwareScannerModule, OcrModule, DocumentProcessingModule, ReminderModule, ExtractionReviewModule, HomeModule, HouseholdModule, PersonModule, ProtectionModule, TaskModule, TimelineModule, UploadModule],
+  imports: [AuthModule, DatabaseModule, CountryRuleModule, ObjectStorageModule, MalwareScannerModule, OcrModule, DocumentProcessingModule, ReminderModule, ExtractionReviewModule, HomeModule, HouseholdModule, PersonModule, ProtectionModule, TaskModule, TimelineModule, UploadModule],
   controllers: [HealthController],
 })
 export class AppModule {}
