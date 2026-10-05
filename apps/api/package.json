@@ -13,7 +13,9 @@
     "verify": "npm run test",
     "test:integration": "npm run build && node --test --test-concurrency=1 dist/test/*.integration.test.js",
     "worker": "node dist/src/worker.js",
-    "worker:once": "WORKER_ONCE=true node dist/src/worker.js"
+    "worker:once": "WORKER_ONCE=true node dist/src/worker.js",
+    "scheduler": "node dist/src/scheduler.js",
+    "scheduler:once": "SCHEDULER_ONCE=true node dist/src/scheduler.js"
   },
   "dependencies": {
     "@azure/identity": "4.13.3",
