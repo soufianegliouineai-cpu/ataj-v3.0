@@ -4,6 +4,7 @@ import { OidcAuthService } from './auth/oidc-auth.service.js';
 import { DatabaseService } from './database/database.service.js';
 import { WorkerDatabaseService } from './database/worker-database.service.js';
 import { DocumentIntelligenceService } from './ocr/document-intelligence.service.js';
+import { NotificationDispatcherService } from './reminders/notification-dispatcher.service.js';
 import { ReminderSchedulerService } from './reminders/reminder-scheduler.service.js';
 import { MalwareScannerService } from './scanning/malware-scanner.service.js';
 import { ObjectStorageService } from './storage/object-storage.service.js';
@@ -18,6 +19,7 @@ export class HealthController {
     private readonly scanner: MalwareScannerService,
     private readonly ocr: DocumentIntelligenceService,
     private readonly reminders: ReminderSchedulerService,
+    private readonly notifications: NotificationDispatcherService,
   ) {}
 
   @Get('health')
@@ -46,6 +48,7 @@ export class HealthController {
       && this.ocr.configured,
     );
     const reminderSchedulerReady = Boolean(workerDatabase.ok && this.reminders.configured);
+    const inAppDeliveryReady = Boolean(workerDatabase.ok && this.notifications.configured);
 
     return {
       ready: true,
@@ -79,7 +82,9 @@ export class HealthController {
           : workerDatabase.enabled
             ? 'degraded'
             : 'not_configured',
-        reminderDelivery: 'outbox_only',
+        reminderDelivery: inAppDeliveryReady ? 'in_app_ready' : 'not_configured',
+        pushDelivery: 'not_configured',
+        emailDelivery: 'not_configured',
         jurisdictionRules: 'not_enabled',
       },
       dependencies: {
@@ -92,6 +97,7 @@ export class HealthController {
         malwareScanner: this.scanner.capability,
         documentIntelligence: this.ocr.capability,
         reminderScheduler: this.reminders.capability,
+        notificationDispatcher: this.notifications.capability,
       },
     };
   }
