@@ -3,7 +3,7 @@
   "info": {
     "title": "LifeOS AI Nest API",
     "version": "0.3.0",
-    "description": "Provider-neutral NestJS API target. Persistent routes require verified OIDC JWTs and PostgreSQL RLS. The tested ingestion path includes signed Azure Blob-compatible upload transport, quarantine, ClamAV scanning, durable processing jobs, OCR extraction, provenance review, deterministic expiry protection, reminders, and in-app outbox delivery. Public production hosting, push/email delivery, and jurisdiction-specific rules are not configured yet."
+    "description": "Provider-neutral NestJS API target. Persistent routes require verified OIDC JWTs and PostgreSQL RLS. The tested ingestion path includes signed Azure Blob-compatible upload transport, quarantine, ClamAV scanning, durable processing jobs, OCR extraction, provenance review, deterministic expiry protection, reminders, and in-app outbox delivery. Morocco v1 is available as a primary-source pilot country-rules catalog. Public production hosting, push/email delivery, and automatic country-rule actions/deadlines are not configured yet."
   },
   "servers": [
     {
@@ -16,6 +16,30 @@
     "/readiness": {"get":{"operationId":"getReadiness","responses":{"200":{"description":"Runtime capability and dependency readiness"}}}},
     "/version": {"get":{"operationId":"getVersion","responses":{"200":{"description":"API version"}}}},
     "/document-types": {"get":{"operationId":"listDocumentTypes","responses":{"200":{"description":"Supported document types"}}}},
+    "/country-packs/{jurisdiction}": {
+      "get": {
+        "operationId": "getCountryPack",
+        "parameters": [{"$ref":"#/components/parameters/Jurisdiction"}],
+        "responses": {
+          "200": {"description":"Active primary-source country rules and source metadata. Morocco v1 is currently a pilot pack."},
+          "404": {"description":"No active pack exists for the requested jurisdiction."},
+          "503": {"description":"Country rule persistence is not configured."}
+        }
+      }
+    },
+    "/country-packs/{jurisdiction}/evaluate": {
+      "post": {
+        "operationId": "evaluateCountryRule",
+        "parameters": [{"$ref":"#/components/parameters/Jurisdiction"}],
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/EvaluateCountryRuleRequest"}}}},
+        "responses": {
+          "201": {"description":"Deterministic application-requirement evaluation with rule version and official-source evidence; does not create tasks or deadlines."},
+          "404": {"description":"Country pack or rule not found."},
+          "422": {"description":"Rule is informational and not evaluatable."},
+          "503": {"description":"Country rule persistence is not configured."}
+        }
+      }
+    },
     "/protection/expiry": {
       "post": {
         "operationId": "calculateExpiryProtection",
@@ -84,6 +108,7 @@
   "components": {
     "securitySchemes": {"bearerAuth":{"type":"http","scheme":"bearer","bearerFormat":"JWT"}},
     "parameters": {
+      "Jurisdiction":{"name":"jurisdiction","in":"path","required":true,"schema":{"type":"string","pattern":"^[A-Za-z]{2}$","example":"MA"}},
       "HouseholdId":{"name":"householdId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}},
       "UploadId":{"name":"uploadId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
     },
@@ -111,6 +136,14 @@
           "documentType":{"type":"string","enum":["passport","identity_card","driving_license","insurance","visa","residence_permit","vehicle_registration","contract","certificate","other"]},
           "personId":{"type":"string","format":"uuid"},
           "sha256":{"type":"string","pattern":"^[0-9a-fA-F]{64}$"}
+        }
+      },
+      "EvaluateCountryRuleRequest": {
+        "type":"object","additionalProperties":false,"required":["ruleCode","ageYears","documents"],
+        "properties": {
+          "ruleCode":{"type":"string","example":"passport_requires_valid_cnie_12_plus"},
+          "ageYears":{"type":"integer","minimum":0,"maximum":130},
+          "documents":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["type","state"],"properties":{"type":{"type":"string"},"state":{"type":"string","enum":["valid","expired","missing"]}}}}
         }
       }
     }
