@@ -85,7 +85,8 @@ export class HealthController {
         reminderDelivery: inAppDeliveryReady ? 'in_app_ready' : 'not_configured',
         pushDelivery: 'not_configured',
         emailDelivery: 'not_configured',
-        jurisdictionRules: 'not_enabled',
+        jurisdictionRules: database.ok ? 'ma_v1_pilot' : database.enabled ? 'degraded' : 'not_configured',
+        automaticCountryRuleActions: 'not_enabled',
       },
       dependencies: {
         database,
@@ -98,6 +99,12 @@ export class HealthController {
         documentIntelligence: this.ocr.capability,
         reminderScheduler: this.reminders.capability,
         notificationDispatcher: this.notifications.capability,
+        countryRules: {
+          configured: database.ok,
+          activePacks: database.ok ? ['MA:v1-pilot'] : [],
+          sourcePolicy: 'primary_official_sources_only',
+          automaticActions: false,
+        },
       },
     };
   }
