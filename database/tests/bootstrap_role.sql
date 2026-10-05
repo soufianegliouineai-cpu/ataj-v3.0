@@ -25,6 +25,8 @@ grant select, insert on public.audit_logs to lifeos_app;
 
 grant select on public.deadline_reminders to lifeos_app;
 grant select on public.notification_outbox to lifeos_app;
+grant select on public.official_sources to lifeos_app;
+grant select on public.country_rule_versions to lifeos_app;
 
 grant select, insert, update, delete on public.document_uploads to lifeos_app;
 grant select, insert, update, delete on public.document_processing_jobs to lifeos_app;
