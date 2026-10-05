@@ -57,38 +57,32 @@ for (const [name, openapi] of [['edge', edgeOpenapi], ['nest', nestOpenapi]]) {
 if (!edgeOpenapi.paths?.['/v1/protection/expiry']?.post) failures.push('Edge OpenAPI missing POST /v1/protection/expiry');
 if (!edgeOpenapi.paths?.['/readiness']?.get) failures.push('Edge OpenAPI missing GET /readiness');
 
-const homePath = nestOpenapi.paths?.['/home']?.get;
-if (!homePath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
-  failures.push('Nest OpenAPI missing authenticated Home aggregate');
+function requiresBearer(path, method, label) {
+  const operation = nestOpenapi.paths?.[path]?.[method];
+  if (!operation?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
+    failures.push(`Nest OpenAPI missing authenticated ${label}`);
+  }
+  return operation;
 }
 
-const householdListPath = nestOpenapi.paths?.['/households']?.get;
-if (!householdListPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
-  failures.push('Nest OpenAPI missing authenticated household list');
-}
-const peoplePath = nestOpenapi.paths?.['/households/{householdId}/people'];
-if (!peoplePath?.get?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))
-  || !peoplePath?.post?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
-  failures.push('Nest OpenAPI household people routes must require bearerAuth');
-}
-const timelinePath = nestOpenapi.paths?.['/households/{householdId}/timeline']?.get;
-if (!timelinePath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
-  failures.push('Nest OpenAPI missing authenticated Life Timeline route');
+requiresBearer('/home', 'get', 'Home aggregate');
+requiresBearer('/reminders', 'get', 'reminder list');
+requiresBearer('/households', 'get', 'household list');
+requiresBearer('/households/{householdId}/people', 'get', 'household people list');
+requiresBearer('/households/{householdId}/people', 'post', 'household person creation');
+requiresBearer('/households/{householdId}/timeline', 'get', 'Life Timeline route');
+requiresBearer('/households/{householdId}/tasks/{taskId}/complete', 'post', 'task completion');
+requiresBearer('/households/{householdId}/uploads/intents', 'post', 'upload intent creation');
+requiresBearer('/households/{householdId}/uploads', 'get', 'upload list');
+requiresBearer('/households/{householdId}/uploads/{uploadId}/finalize', 'post', 'upload finalization');
+requiresBearer('/households/{householdId}/uploads/{uploadId}/process', 'post', 'processing enqueue');
+requiresBearer('/households/{householdId}/uploads/{uploadId}/process', 'get', 'processing status');
+requiresBearer('/households/{householdId}/extractions/{runId}', 'get', 'extraction review');
+const extractionConfirmPath = requiresBearer('/households/{householdId}/extractions/{runId}/fields/{fieldId}/confirm', 'post', 'extracted-field confirmation');
+if (!String(extractionConfirmPath?.responses?.['201']?.description ?? '').includes('USER_CONFIRMED')) {
+  failures.push('Nest extracted-field confirmation must document USER_CONFIRMED trust handoff');
 }
 
-const taskCompletePath = nestOpenapi.paths?.['/households/{householdId}/tasks/{taskId}/complete']?.post;
-if (!taskCompletePath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
-  failures.push('Nest OpenAPI missing authenticated task completion');
-}
-
-const uploadIntentPath = nestOpenapi.paths?.['/households/{householdId}/uploads/intents']?.post;
-if (!uploadIntentPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
-  failures.push('Nest OpenAPI missing authenticated upload intent creation');
-}
-const uploadListPath = nestOpenapi.paths?.['/households/{householdId}/uploads']?.get;
-if (!uploadListPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
-  failures.push('Nest OpenAPI missing authenticated upload intent list');
-}
 const uploadSchema = nestOpenapi.components?.schemas?.CreateUploadIntentRequest;
 if (uploadSchema?.properties?.sizeBytes?.maximum !== 26214400) {
   failures.push('Nest OpenAPI upload size limit must be 25 MiB');
@@ -97,16 +91,13 @@ const uploadMimes = uploadSchema?.properties?.mimeType?.enum ?? [];
 for (const mime of ['application/pdf','image/jpeg','image/png','image/heic','image/webp']) {
   if (!uploadMimes.includes(mime)) failures.push(`Nest OpenAPI missing upload MIME ${mime}`);
 }
-const extractionReviewPath = nestOpenapi.paths?.['/households/{householdId}/extractions/{runId}']?.get;
-if (!extractionReviewPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
-  failures.push('Nest OpenAPI missing authenticated extraction review');
+
+const description = String(nestOpenapi.info?.description ?? '');
+for (const capability of ['Azure Blob-compatible', 'ClamAV', 'OCR extraction', 'reminders', 'in-app']) {
+  if (!description.includes(capability)) failures.push(`Nest OpenAPI description missing implemented capability: ${capability}`);
 }
-const extractionConfirmPath = nestOpenapi.paths?.['/households/{householdId}/extractions/{runId}/fields/{fieldId}/confirm']?.post;
-if (!extractionConfirmPath?.security?.some(entry => Object.hasOwn(entry, 'bearerAuth'))) {
-  failures.push('Nest OpenAPI missing authenticated extracted-field confirmation');
-}
-if (!String(extractionConfirmPath?.responses?.['201']?.description ?? '').includes('USER_CONFIRMED')) {
-  failures.push('Nest extracted-field confirmation must document USER_CONFIRMED trust handoff');
+for (const unconfigured of ['push/email delivery', 'jurisdiction-specific rules']) {
+  if (!description.includes(unconfigured)) failures.push(`Nest OpenAPI description must state unconfigured boundary: ${unconfigured}`);
 }
 
 const nestServerUrls = (nestOpenapi.servers ?? []).map(server => server.url);
