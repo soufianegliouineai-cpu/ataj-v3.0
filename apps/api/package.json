@@ -15,7 +15,9 @@
     "worker": "node dist/src/worker.js",
     "worker:once": "WORKER_ONCE=true node dist/src/worker.js",
     "scheduler": "node dist/src/scheduler.js",
-    "scheduler:once": "SCHEDULER_ONCE=true node dist/src/scheduler.js"
+    "scheduler:once": "SCHEDULER_ONCE=true node dist/src/scheduler.js",
+    "notifier": "node dist/src/notifier.js",
+    "notifier:once": "NOTIFICATION_ONCE=true node dist/src/notifier.js"
   },
   "dependencies": {
     "@azure/identity": "4.13.3",
