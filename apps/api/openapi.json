@@ -3,7 +3,7 @@
   "info": {
     "title": "LifeOS AI Nest API",
     "version": "0.3.0",
-    "description": "Provider-neutral NestJS API target. Persistent writes require verified OIDC JWTs and PostgreSQL RLS. Upload metadata and explicit extraction review are implemented; byte transport, malware scanning, a live OCR engine, jurisdiction rules, and a public production hostname are not configured yet."
+    "description": "Provider-neutral NestJS API target. Persistent routes require verified OIDC JWTs and PostgreSQL RLS. The tested ingestion path includes signed Azure Blob-compatible upload transport, quarantine, ClamAV scanning, durable processing jobs, OCR extraction, provenance review, deterministic expiry protection, reminders, and in-app outbox delivery. Public production hosting, push/email delivery, and jurisdiction-specific rules are not configured yet."
   },
   "servers": [
     {
@@ -12,652 +12,105 @@
     }
   ],
   "paths": {
-    "/health": {
-      "get": {
-        "operationId": "getHealth",
-        "responses": {
-          "200": {
-            "description": "Service health"
-          }
-        }
-      }
-    },
-    "/readiness": {
-      "get": {
-        "operationId": "getReadiness",
-        "responses": {
-          "200": {
-            "description": "Runtime capability and dependency readiness"
-          }
-        }
-      }
-    },
-    "/version": {
-      "get": {
-        "operationId": "getVersion",
-        "responses": {
-          "200": {
-            "description": "API version"
-          }
-        }
-      }
-    },
-    "/document-types": {
-      "get": {
-        "operationId": "listDocumentTypes",
-        "responses": {
-          "200": {
-            "description": "Supported document types"
-          }
-        }
-      }
-    },
+    "/health": {"get":{"operationId":"getHealth","responses":{"200":{"description":"Service health"}}}},
+    "/readiness": {"get":{"operationId":"getReadiness","responses":{"200":{"description":"Runtime capability and dependency readiness"}}}},
+    "/version": {"get":{"operationId":"getVersion","responses":{"200":{"description":"API version"}}}},
+    "/document-types": {"get":{"operationId":"listDocumentTypes","responses":{"200":{"description":"Supported document types"}}}},
     "/protection/expiry": {
       "post": {
         "operationId": "calculateExpiryProtection",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 200
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExpiryProtectionRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Stateless expiry protection calculated"
-          },
-          "400": {
-            "description": "Validation error"
-          }
-        }
-      }
-    },
-    "/households/{householdId}/protection/expiry": {
-      "post": {
-        "operationId": "persistExpiryProtection",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "householdId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PersistExpiryProtectionRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Protection graph persisted atomically"
-          },
-          "400": {
-            "description": "Validation or idempotency error"
-          },
-          "401": {
-            "description": "Bearer token missing or invalid"
-          },
-          "403": {
-            "description": "RLS denied access to household"
-          },
-          "503": {
-            "description": "OIDC or persistence dependency not configured"
-          }
-        }
-      }
-    },
-    "/households": {
-      "get": {
-        "operationId": "listHouseholds",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Households visible to the verified user"
-          },
-          "401": {
-            "description": "Bearer token missing or invalid"
-          },
-          "503": {
-            "description": "OIDC or persistence dependency not configured"
-          }
-        }
-      },
-      "post": {
-        "operationId": "createHousehold",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "name"
-                ],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120
-                  },
-                  "homeJurisdiction": {
-                    "type": "string",
-                    "maxLength": 32
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Household created and caller added as owner"
-          },
-          "400": {
-            "description": "Validation error"
-          },
-          "401": {
-            "description": "Bearer token missing or invalid"
-          },
-          "503": {
-            "description": "Persistence not configured"
-          }
-        }
-      }
-    },
-    "/households/{householdId}/people": {
-      "get": {
-        "operationId": "listPeople",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "householdId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "People metadata visible through household RLS"
-          },
-          "401": {
-            "description": "Bearer token missing or invalid"
-          }
-        }
-      },
-      "post": {
-        "operationId": "createPerson",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "householdId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Person metadata created"
-          },
-          "400": {
-            "description": "Validation error"
-          },
-          "401": {
-            "description": "Bearer token missing or invalid"
-          },
-          "403": {
-            "description": "RLS denied household access"
-          }
-        }
-      }
-    },
-    "/households/{householdId}/timeline": {
-      "get": {
-        "operationId": "getLifeTimeline",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "householdId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "RLS-filtered obligation, deadline, document and task timeline"
-          },
-          "401": {
-            "description": "Bearer token missing or invalid"
-          },
-          "404": {
-            "description": "Household not found or not visible"
-          },
-          "503": {
-            "description": "Persistence not configured"
-          }
-        }
-      }
-    },
-    "/households/{householdId}/tasks/{taskId}/complete": {
-      "post": {
-        "operationId": "completeTask",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "householdId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "taskId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Task, deadline and obligation completed atomically; repeated calls replay state"
-          },
-          "401": {
-            "description": "Bearer token missing or invalid"
-          },
-          "404": {
-            "description": "Task not found or not visible"
-          },
-          "503": {
-            "description": "Persistence not configured"
-          }
-        }
+        "parameters": [{"name":"Idempotency-Key","in":"header","required":false,"schema":{"type":"string","maxLength":200}}],
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ExpiryProtectionRequest"}}}},
+        "responses": {"201":{"description":"Stateless expiry protection calculated"},"400":{"description":"Validation error"}}
       }
     },
     "/home": {
       "get": {
         "operationId": "getHomeSummary",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "RLS-filtered LifeOS home status, coverage, counts and upcoming tasks"
-          },
-          "401": {
-            "description": "Bearer token missing or invalid"
-          },
-          "503": {
-            "description": "Persistence not configured"
-          }
-        }
+        "security": [{"bearerAuth":[]}],
+        "responses": {"200":{"description":"RLS-filtered LifeOS home status, coverage, counts and upcoming tasks"},"401":{"description":"Bearer token missing or invalid"},"503":{"description":"Persistence not configured"}}
       }
+    },
+    "/reminders": {
+      "get": {
+        "operationId": "listReminders",
+        "security": [{"bearerAuth":[]}],
+        "responses": {"200":{"description":"RLS-filtered reminder schedule and in-app delivery state for the verified user"},"401":{"description":"Bearer token missing or invalid"},"503":{"description":"Persistence not configured"}}
+      }
+    },
+    "/households": {
+      "get": {"operationId":"listHouseholds","security":[{"bearerAuth":[]}],"responses":{"200":{"description":"Households visible to the verified user"},"401":{"description":"Bearer token missing or invalid"}}},
+      "post": {"operationId":"createHousehold","security":[{"bearerAuth":[]}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","additionalProperties":false,"required":["name"],"properties":{"name":{"type":"string","minLength":1,"maxLength":120},"homeJurisdiction":{"type":"string","maxLength":32}}}}}},"responses":{"201":{"description":"Household created and caller added as owner"},"400":{"description":"Validation error"},"401":{"description":"Bearer token missing or invalid"}}}
+    },
+    "/households/{householdId}/people": {
+      "get": {"operationId":"listPeople","security":[{"bearerAuth":[]}],"parameters":[{"$ref":"#/components/parameters/HouseholdId"}],"responses":{"200":{"description":"People metadata visible through household RLS"},"404":{"description":"Household not found or not visible"}}},
+      "post": {"operationId":"createPerson","security":[{"bearerAuth":[]}],"parameters":[{"$ref":"#/components/parameters/HouseholdId"}],"responses":{"201":{"description":"Person metadata created"},"400":{"description":"Validation error"},"404":{"description":"Household not found or not visible"}}}
+    },
+    "/households/{householdId}/protection/expiry": {
+      "post": {
+        "operationId":"persistExpiryProtection",
+        "security":[{"bearerAuth":[]}],
+        "parameters":[{"$ref":"#/components/parameters/HouseholdId"},{"name":"Idempotency-Key","in":"header","required":true,"schema":{"type":"string","minLength":1,"maxLength":200}}],
+        "requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/PersistExpiryProtectionRequest"}}}},
+        "responses":{"201":{"description":"Protection graph persisted atomically"},"400":{"description":"Validation or idempotency error"},"401":{"description":"Bearer token missing or invalid"},"404":{"description":"Household or person not found or not visible"}}
+      }
+    },
+    "/households/{householdId}/timeline": {
+      "get": {"operationId":"getLifeTimeline","security":[{"bearerAuth":[]}],"parameters":[{"$ref":"#/components/parameters/HouseholdId"}],"responses":{"200":{"description":"RLS-filtered obligation, deadline, document and task timeline"},"404":{"description":"Household not found or not visible"}}}
+    },
+    "/households/{householdId}/tasks/{taskId}/complete": {
+      "post": {"operationId":"completeTask","security":[{"bearerAuth":[]}],"parameters":[{"$ref":"#/components/parameters/HouseholdId"},{"name":"taskId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Task, deadline and obligation completed atomically; pending reminders/outbox are cancelled; repeated calls replay state"},"404":{"description":"Task not found or not visible"}}}
     },
     "/households/{householdId}/uploads/intents": {
-      "post": {
-        "operationId": "createDocumentUploadIntent",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "householdId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateUploadIntentRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Private quarantined upload metadata intent created. No byte upload URL is returned until object storage is configured."
-          },
-          "400": {
-            "description": "Unsafe filename, disallowed MIME type, invalid size, document type, person ID, or SHA-256."
-          },
-          "401": {
-            "description": "Bearer token missing or invalid."
-          },
-          "404": {
-            "description": "Household or person not found or not visible."
-          },
-          "503": {
-            "description": "Persistence not configured."
-          }
-        }
-      }
+      "post": {"operationId":"createDocumentUploadIntent","security":[{"bearerAuth":[]}],"parameters":[{"$ref":"#/components/parameters/HouseholdId"}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/CreateUploadIntentRequest"}}}},"responses":{"201":{"description":"Private upload intent with short-lived write-only Azure Blob-compatible SAS when storage is configured"},"400":{"description":"Unsafe filename, MIME, size, document type, person ID or SHA-256"},"404":{"description":"Household or person not found or not visible"}}}
     },
     "/households/{householdId}/uploads": {
-      "get": {
-        "operationId": "listDocumentUploadIntents",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "householdId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Owner-private upload metadata visible to the verified user."
-          },
-          "401": {
-            "description": "Bearer token missing or invalid."
-          },
-          "404": {
-            "description": "Household not found or not visible."
-          }
-        }
-      }
+      "get": {"operationId":"listDocumentUploads","security":[{"bearerAuth":[]}],"parameters":[{"$ref":"#/components/parameters/HouseholdId"}],"responses":{"200":{"description":"Owner-private upload metadata visible through RLS"},"404":{"description":"Household not found or not visible"}}}
+    },
+    "/households/{householdId}/uploads/{uploadId}/finalize": {
+      "post": {"operationId":"finalizeDocumentUpload","security":[{"bearerAuth":[]}],"parameters":[{"$ref":"#/components/parameters/HouseholdId"},{"$ref":"#/components/parameters/UploadId"}],"responses":{"201":{"description":"Stored object metadata verified and upload moved into quarantine; malware/hash verification still required"},"404":{"description":"Upload not found or not visible"},"409":{"description":"Bytes missing, intent expired, size mismatch or MIME mismatch"}}}
+    },
+    "/households/{householdId}/uploads/{uploadId}/process": {
+      "post": {"operationId":"enqueueDocumentProcessing","security":[{"bearerAuth":[]}],"parameters":[{"$ref":"#/components/parameters/HouseholdId"},{"$ref":"#/components/parameters/UploadId"}],"responses":{"202":{"description":"Clean verified upload queued for durable background processing"},"404":{"description":"Upload not found or not visible"},"409":{"description":"Upload is not ready for processing"}}},
+      "get": {"operationId":"getDocumentProcessingStatus","security":[{"bearerAuth":[]}],"parameters":[{"$ref":"#/components/parameters/HouseholdId"},{"$ref":"#/components/parameters/UploadId"}],"responses":{"200":{"description":"Durable processing job and extraction status"},"404":{"description":"Upload or processing job not found or not visible"}}}
     },
     "/households/{householdId}/extractions/{runId}": {
-      "get": {
-        "operationId": "getExtractionReview",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "householdId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "runId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Owner-private AI-extracted fields with model/source/page provenance and review status."
-          },
-          "401": {
-            "description": "Bearer token missing or invalid."
-          },
-          "404": {
-            "description": "Household or extraction not found or not visible."
-          },
-          "503": {
-            "description": "Persistence not configured."
-          }
-        }
-      }
+      "get": {"operationId":"getExtractionReview","security":[{"bearerAuth":[]}],"parameters":[{"$ref":"#/components/parameters/HouseholdId"},{"name":"runId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Owner-private AI-extracted fields with model/source/page provenance and review status"},"404":{"description":"Household or extraction not found or not visible"}}}
     },
     "/households/{householdId}/extractions/{runId}/fields/{fieldId}/confirm": {
-      "post": {
-        "operationId": "confirmExtractedField",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "householdId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "runId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "fieldId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Explicit owner confirmation promotes one extracted field to a USER_CONFIRMED document fact while retaining original AI provenance. Repeated calls replay the same fact."
-          },
-          "401": {
-            "description": "Bearer token missing or invalid."
-          },
-          "404": {
-            "description": "Household, extraction, or field not found or not visible."
-          },
-          "409": {
-            "description": "Extraction not ready or field was rejected."
-          },
-          "503": {
-            "description": "Persistence not configured."
-          }
-        }
-      }
+      "post": {"operationId":"confirmExtractedField","security":[{"bearerAuth":[]}],"parameters":[{"$ref":"#/components/parameters/HouseholdId"},{"name":"runId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}},{"name":"fieldId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"201":{"description":"Explicit owner confirmation promotes one extracted field to a USER_CONFIRMED fact while retaining original AI provenance; confirmed expiry facts deterministically create or reuse obligation, deadline and task"},"404":{"description":"Household, extraction or field not found or not visible"},"409":{"description":"Extraction not ready or field rejected"}}}
     }
   },
   "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      }
+    "securitySchemes": {"bearerAuth":{"type":"http","scheme":"bearer","bearerFormat":"JWT"}},
+    "parameters": {
+      "HouseholdId":{"name":"householdId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}},
+      "UploadId":{"name":"uploadId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
     },
     "schemas": {
       "ExpiryProtectionRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "documentType",
-          "expiryDate"
-        ],
+        "type":"object","additionalProperties":false,"required":["documentType","expiryDate"],
         "properties": {
-          "documentType": {
-            "type": "string",
-            "enum": [
-              "passport",
-              "identity_card",
-              "driving_license",
-              "insurance",
-              "visa",
-              "residence_permit",
-              "vehicle_registration",
-              "contract",
-              "certificate",
-              "other"
-            ]
-          },
-          "expiryDate": {
-            "type": "string",
-            "format": "date"
-          },
-          "leadDays": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 365,
-            "default": 90
-          }
+          "documentType":{"type":"string","enum":["passport","identity_card","driving_license","insurance","visa","residence_permit","vehicle_registration","contract","certificate","other"]},
+          "expiryDate":{"type":"string","format":"date"},
+          "leadDays":{"type":"integer","minimum":1,"maximum":365,"default":90}
         }
       },
       "PersistExpiryProtectionRequest": {
         "allOf": [
-          {
-            "$ref": "#/components/schemas/ExpiryProtectionRequest"
-          },
-          {
-            "type": "object",
-            "properties": {
-              "personId": {
-                "type": "string",
-                "format": "uuid"
-              }
-            }
-          }
+          {"$ref":"#/components/schemas/ExpiryProtectionRequest"},
+          {"type":"object","properties":{"personId":{"type":"string","format":"uuid"}}}
         ]
       },
       "CreateUploadIntentRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "fileName",
-          "mimeType",
-          "sizeBytes",
-          "documentType"
-        ],
+        "type":"object","additionalProperties":false,"required":["fileName","mimeType","sizeBytes","documentType"],
         "properties": {
-          "fileName": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 180,
-            "description": "Base filename only. Path separators and NUL characters are rejected."
-          },
-          "mimeType": {
-            "type": "string",
-            "enum": [
-              "application/pdf",
-              "image/jpeg",
-              "image/png",
-              "image/heic",
-              "image/webp"
-            ]
-          },
-          "sizeBytes": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 26214400
-          },
-          "documentType": {
-            "$ref": "#/components/schemas/ExpiryProtectionRequest/properties/documentType"
-          },
-          "personId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "sha256": {
-            "type": "string",
-            "pattern": "^[0-9a-fA-F]{64}$",
-            "description": "Optional client-declared SHA-256. Server verification occurs only after byte transport exists."
-          }
+          "fileName":{"type":"string","minLength":1,"maxLength":180},
+          "mimeType":{"type":"string","enum":["application/pdf","image/jpeg","image/png","image/heic","image/webp"]},
+          "sizeBytes":{"type":"integer","minimum":1,"maximum":26214400},
+          "documentType":{"type":"string","enum":["passport","identity_card","driving_license","insurance","visa","residence_permit","vehicle_registration","contract","certificate","other"]},
+          "personId":{"type":"string","format":"uuid"},
+          "sha256":{"type":"string","pattern":"^[0-9a-fA-F]{64}$"}
         }
       }
     }
